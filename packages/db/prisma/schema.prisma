@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  passwordHash String
+  role String
+  active Boolean @default(true)
+  buyerId String?
+  buyer Buyer? @relation(fields:[buyerId],references:[id])
+  workerId String? @unique
+  worker Worker? @relation(fields:[workerId],references:[id])
+  factoryId String?
+  factory Factory? @relation(fields:[factoryId],references:[id])
+  departmentId String?
+  department Department? @relation(fields:[departmentId],references:[id])
+  userRoles UserRole[]
+  sessions Session[]
+  createdAt DateTime @default(now())
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  csrf String
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model Buyer {
+  id String @id @default(cuid())
+  name String
+  email String
+  city String
+  initials String
+  users User[]
+  orders SalesOrder[]
+}
+model Recipe {
+  id String @id @default(cuid())
+  name String
+  material String
+  specification String
+  kgPerMetre Decimal @db.Decimal(12,6)
+  wastePercent Decimal @db.Decimal(6,3)
+  route String[]
+  overheadPerMetre Decimal @db.Decimal(14,2)
+  items SalesOrderItem[]
+}
+model SalesOrder {
+  id String @id @default(cuid())
+  number String @unique
+  buyerId String
+  buyer Buyer @relation(fields:[buyerId],references:[id])
+  status String @default("CONFIRMED")
+  priority String @default("NORMAL")
+  deadline DateTime
+  instructions String @default("")
+  createdAt DateTime @default(now())
+  items SalesOrderItem[]
+  shipments Shipment[]
+  costs CostAllocation[]
+  @@index([status,deadline])
+}
+model SalesOrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order SalesOrder @relation(fields:[orderId],references:[id])
+  recipeId String
+  recipe Recipe @relation(fields:[recipeId],references:[id])
+  fabric String
+  color String
+  quantity Decimal @db.Decimal(14,3)
+  price Decimal @db.Decimal(14,2)
+  production ProductionOrder?
+}
+model Supplier {
+  id String @id @default(cuid())
+  name String
+  email String
+  city String
+  lots YarnLot[]
+  purchases PurchaseOrder[]
+}
+model PurchaseOrder {
+  id String @id @default(cuid())
+  number String @unique
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId],references:[id])
+  material String
+  color String
+  specification String
+  quantity Decimal @db.Decimal(14,3)
+  costPerKg Decimal @db.Decimal(14,2)
+  status String @default("ORDERED")
+  expectedAt DateTime
+  createdAt DateTime @default(now())
+  receipts GoodsReceipt[]
+}
+model GoodsReceipt {
+  id String @id @default(cuid())
+  reference String @unique
+  purchaseId String?
+  purchase PurchaseOrder? @relation(fields:[purchaseId],references:[id])
+  lotId String @unique
+  lot YarnLot @relation(fields:[lotId],references:[id])
+  quantity Decimal @db.Decimal(14,3)
+  receivedAt DateTime @default(now())
+  bill SupplierBill?
+}
+model SupplierBill {
+  id String @id @default(cuid())
+  receiptId String @unique
+  receipt GoodsReceipt @relation(fields:[receiptId],references:[id])
+  total Decimal @db.Decimal(14,2)
+  dueAt DateTime
+  payments SupplierPayment[]
+}
+model SupplierPayment {
+  id String @id @default(cuid())
+  billId String
+  bill SupplierBill @relation(fields:[billId],references:[id])
+  amount Decimal @db.Decimal(14,2)
+  reference String @unique
+  createdAt DateTime @default(now())
+}
+model YarnLot {
+  id String @id @default(cuid())
+  code String @unique
+  material String
+  color String
+  specification String
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId],references:[id])
+  location String
+  unit String @default("kg")
+  onHand Decimal @db.Decimal(14,3)
+  reserved Decimal @default(0) @db.Decimal(14,3)
+  costPerKg Decimal @db.Decimal(14,2)
+  threshold Decimal @db.Decimal(14,3)
+  createdAt DateTime @default(now())
+  receipt GoodsReceipt?
+  movements StockMovement[]
+  reservations StockReservation[]
+  consumption MaterialConsumption[]
+}
+model StockMovement {
+  id String @id @default(cuid())
+  lotId String
+  lot YarnLot @relation(fields:[lotId],references:[id])
+  kind String
+  quantity Decimal @db.Decimal(14,3)
+  reason String
+  source String
+  createdAt DateTime @default(now())
+  @@index([lotId,createdAt])
+}
+model StockReservation {
+  id String @id @default(cuid())
+  lotId String
+  lot YarnLot @relation(fields:[lotId],references:[id])
+  productionId String
+  production ProductionOrder @relation(fields:[productionId],references:[id])
+  quantity Decimal @db.Decimal(14,3)
+  consumed Decimal @default(0) @db.Decimal(14,3)
+  released Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@unique([lotId,productionId])
+}
+model ProductionOrder {
+  id String @id @default(cuid())
+  number String @unique
+  itemId String @unique
+  item SalesOrderItem @relation(fields:[itemId],references:[id])
+  status String @default("PLANNED")
+  target Decimal @db.Decimal(14,3)
+  createdAt DateTime @default(now())
+  jobs JobCard[]
+  reservations StockReservation[]
+  rolls FabricRoll[]
+}
+model JobCard {
+  id String @id @default(cuid())
+  productionId String
+  production ProductionOrder @relation(fields:[productionId],references:[id])
+  stage String
+  sequence Int
+  status String @default("PLANNED")
+  target Decimal @db.Decimal(14,3)
+  output Decimal @default(0) @db.Decimal(14,3)
+  machineId String?
+  machine Machine? @relation(fields:[machineId],references:[id])
+  workerId String?
+  worker Worker? @relation(fields:[workerId],references:[id])
+  shiftId String?
+  shift Shift? @relation(fields:[shiftId],references:[id])
+  plannedStart DateTime?
+  plannedEnd DateTime?
+  startedAt DateTime?
+  endedAt DateTime?
+  entries ProductionEntry[]
+  assignments WorkerAssignment[]
+  @@unique([productionId,sequence])
+}
+model Machine {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  type String
+  location String
+  capacityPerHour Decimal @db.Decimal(12,3)
+  hourlyCost Decimal @db.Decimal(14,2)
+  status String @default("IDLE")
+  reportedAt DateTime @default(now())
+  factoryId String?
+  factory Factory? @relation(fields:[factoryId],references:[id])
+  departmentId String?
+  department Department? @relation(fields:[departmentId],references:[id])
+  jobs JobCard[]
+  downtime DowntimeEvent[]
+}
+model ProductionEntry {
+  id String @id @default(cuid())
+  jobId String
+  job JobCard @relation(fields:[jobId],references:[id])
+  quantity Decimal @db.Decimal(14,3)
+  waste Decimal @db.Decimal(14,3)
+  hours Decimal @db.Decimal(8,3)
+  createdAt DateTime @default(now())
+  consumptions MaterialConsumption[]
+  rolls FabricRoll[]
+}
+model MaterialConsumption {
+  id String @id @default(cuid())
+  entryId String
+  entry ProductionEntry @relation(fields:[entryId],references:[id])
+  lotId String
+  lot YarnLot @relation(fields:[lotId],references:[id])
+  quantity Decimal @db.Decimal(14,3)
+  cost Decimal @db.Decimal(14,2)
+}
+model DowntimeEvent {
+  id String @id @default(cuid())
+  machineId String
+  machine Machine @relation(fields:[machineId],references:[id])
+  reason String
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+}
+model FabricRoll {
+  id String @id @default(cuid())
+  code String @unique
+  productionId String
+  production ProductionOrder @relation(fields:[productionId],references:[id])
+  entryId String
+  entry ProductionEntry @relation(fields:[entryId],references:[id])
+  length Decimal @db.Decimal(14,3)
+  quality String @default("PENDING")
+  location String @default("QC • Bay 01")
+  cost Decimal @default(0) @db.Decimal(14,2)
+  activeShipmentId String?
+  activeShipment Shipment? @relation("ActiveShipment",fields:[activeShipmentId],references:[id])
+  createdAt DateTime @default(now())
+  inspections QualityInspection[]
+  shipmentHistory ShipmentRoll[]
+  reworks ReworkJob[]
+  @@index([quality,activeShipmentId])
+}
+model QualityInspection {
+  id String @id @default(cuid())
+  rollId String
+  roll FabricRoll @relation(fields:[rollId],references:[id])
+  inspector String
+  result String
+  defects String[]
+  notes String
+  createdAt DateTime @default(now())
+}
+model ReworkJob {
+  id String @id @default(cuid())
+  rollId String
+  roll FabricRoll @relation(fields:[rollId],references:[id])
+  reason String
+  status String @default("OPEN")
+  cost Decimal @default(0) @db.Decimal(14,2)
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+}
+model Shipment {
+  id String @id @default(cuid())
+  number String @unique
+  orderId String
+  order SalesOrder @relation(fields:[orderId],references:[id])
+  status String @default("DRAFT")
+  transport String
+  quantity Decimal @db.Decimal(14,3)
+  createdAt DateTime @default(now())
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  cancellationReason String?
+  activeRolls FabricRoll[] @relation("ActiveShipment")
+  rolls ShipmentRoll[]
+  invoice Invoice?
+}
+model ShipmentRoll {
+  id String @id @default(cuid())
+  shipmentId String
+  shipment Shipment @relation(fields:[shipmentId],references:[id])
+  rollId String
+  roll FabricRoll @relation(fields:[rollId],references:[id])
+  verified Boolean @default(false)
+  @@unique([shipmentId,rollId])
+}
+model Invoice {
+  id String @id @default(cuid())
+  number String @unique
+  shipmentId String @unique
+  shipment Shipment @relation(fields:[shipmentId],references:[id])
+  total Decimal @db.Decimal(14,2)
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  payments BuyerPayment[]
+}
+model BuyerPayment {
+  id String @id @default(cuid())
+  invoiceId String
+  invoice Invoice @relation(fields:[invoiceId],references:[id])
+  amount Decimal @db.Decimal(14,2)
+  reference String @unique
+  createdAt DateTime @default(now())
+}
+model Shift {
+  id String @id @default(cuid())
+  name String
+  startHour Int
+  hours Decimal @db.Decimal(6,2)
+  jobs JobCard[]
+  attendance Attendance[]
+}
+model Worker {
+  id String @id @default(cuid())
+  name String
+  designation String
+  initials String
+  wageType String
+  rate Decimal @db.Decimal(14,2)
+  active Boolean @default(true)
+  departmentId String?
+  department Department? @relation(fields:[departmentId],references:[id])
+  user User?
+  jobs JobCard[]
+  attendance Attendance[]
+  assignments WorkerAssignment[]
+  wages WageEntry[]
+}
+model WorkerAssignment {
+  id String @id @default(cuid())
+  workerId String
+  worker Worker @relation(fields:[workerId],references:[id])
+  jobId String
+  job JobCard @relation(fields:[jobId],references:[id])
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+}
+model Attendance {
+  id String @id @default(cuid())
+  workerId String
+  worker Worker @relation(fields:[workerId],references:[id])
+  shiftId String
+  shift Shift @relation(fields:[shiftId],references:[id])
+  date DateTime @db.Date
+  hours Decimal @db.Decimal(6,2)
+  status String @default("PRESENT")
+  wage WageEntry?
+  @@unique([workerId,date])
+}
+model WageEntry {
+  id String @id @default(cuid())
+  workerId String
+  worker Worker @relation(fields:[workerId],references:[id])
+  attendanceId String @unique
+  attendance Attendance @relation(fields:[attendanceId],references:[id])
+  amount Decimal @db.Decimal(14,2)
+  calculation String
+  paidAt DateTime?
+}
+model CostAllocation {
+  id String @id @default(cuid())
+  orderId String
+  order SalesOrder @relation(fields:[orderId],references:[id])
+  category String
+  amount Decimal @db.Decimal(14,2)
+  source String
+  methodology String
+  createdAt DateTime @default(now())
+  @@unique([source,category])
+}
+model OperatingExpense {
+  id String @id @default(cuid())
+  category String
+  description String
+  amount Decimal @db.Decimal(14,2)
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String
+  actorName String
+  action String
+  entityId String
+  detail String
+  createdAt DateTime @default(now())
+  @@index([entityId,createdAt])
+}
+model IdempotencyRecord {
+  id String @id
+  fingerprint String
+  result Json
+  createdAt DateTime @default(now())
+}
+
+model Role {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  description String @default("")
+  isSystem Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  permissions RolePermission[]
+  users UserRole[]
+}
+
+model Permission {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  resource String
+  action String
+  description String @default("")
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id String @id @default(cuid())
+  roleId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model Factory {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  location String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  departments Department[]
+  users User[]
+  machines Machine[]
+}
+
+model Department {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  factoryId String
+  factory Factory @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  users User[]
+  workers Worker[]
+  machines Machine[]
+}

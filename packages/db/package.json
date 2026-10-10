@@ -1,0 +1,1 @@
+{"name":"@loomos/db","version":"1.0.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"@prisma/client":"6.19.0"}}

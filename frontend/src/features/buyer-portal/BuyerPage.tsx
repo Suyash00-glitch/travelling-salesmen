@@ -1,0 +1,12 @@
+import {useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {Truck,ArrowUpRight,ShieldCheck,CalendarDays} from 'lucide-react';
+import type {OrderSummary,PageResponse} from '@loomos/shared';
+import {useAuth} from '../auth/Auth';
+import {useData} from '../../hooks/useFactory';
+import {PageHeader,Panel,Loading,ErrorState,Badge,Progress,Empty} from '../../components/shared/common';
+import {Button} from '../../components/ui/button';
+import {DispatchPage} from '../dispatch/DispatchPage';
+import {number,date} from '../../lib/utils';
+export function BuyerPage(){const {user}=useAuth();const [tab,setTab]=useState('Your orders');const query=useData<PageResponse<OrderSummary>>('/orders?pageSize=100');const navigate=useNavigate();if(query.isPending)return <Loading/>;if(query.error)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>;return <><div className="tabs buyer-tabs">{['Your orders','Your shipments'].map(t=><button key={t} className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>{tab==='Your shipments'?<DispatchPage buyer/>:<><PageHeader eyebrow="YOUR BUYER WORKSPACE" title={`Hello, ${user.name}.`} description="A window into your orders. From production to your doorstep."/><div className="buyer-welcome"><div><span className="eyebrow">MADE WITH CARE. TRACKED WITH CLARITY.</span><h2>Your next delivery,<br/>one thread closer.</h2><p>Follow every order’s progress without making a phone call.</p></div><LayersArt/></div><div className="buyer-order-grid">{query.data!.data.map(o=><Panel key={o.id} className="buyer-order"><div className="buyer-order-heading"><strong>{o.number}</strong><Badge value={o.status}/></div><h2>{o.items[0]?.fabric}</h2><p>{o.items[0]?.color} · {number(o.quantity)} metres</p><Progress value={o.progress} label={`${o.progress}% produced`}/><dl><div><dt><CalendarDays size={14}/>Delivery deadline</dt><dd>{date(o.deadline)}</dd></div><div><dt><ShieldCheck size={14}/>Quality approved</dt><dd>{number(o.approved)} m</dd></div><div><dt><Truck size={14}/>Dispatched</dt><dd>{number(o.dispatched)} m</dd></div></dl><Button variant="outline" onClick={()=>navigate(`/orders/${o.id}`)}>Follow this order<ArrowUpRight size={15}/></Button></Panel>)}</div>{!query.data!.data.length&&<Empty title="Your next order starts here" description="Orders linked to your buyer account will appear here."/>}</>}</>;}
+function LayersArt(){return <div className="buyer-fabric-art"><i/><i/><i/><i/><span>EVERY THREAD CONNECTED</span></div>;}

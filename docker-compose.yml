@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: loomos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_only}
+      POSTGRES_DB: loomos
+    ports:
+      - "127.0.0.1:5439:5432"
+    volumes:
+      - loomos_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loomos"]
+      interval: 3s
+      retries: 15
+volumes:
+  loomos_pg:
