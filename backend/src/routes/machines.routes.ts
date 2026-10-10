@@ -2,8 +2,7 @@ import { Router } from 'express';
 import { db } from '@loomos/db';
 import { authorize } from '../middleware/auth.js';
 import { id, write, reason } from '../lib/route-helpers.js';
-import { machineSummaries } from '../modules/reporting/reporting.service.js';
-import { machineAction } from '../modules/production/production.service.js';
+import { machineSummaries, machineAction } from '../operations.js';
 
 export const machinesRouter = Router();
 

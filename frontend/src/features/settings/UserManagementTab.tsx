@@ -85,7 +85,7 @@ export function UserManagementTab() {
 
           <div className="flex gap-2 items-center flex-wrap">
             <select
-              className="text-xs p-1.5 border rounded bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800"
+              className="text-xs p-1.5 border rounded bg-white border-stone-200"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
@@ -98,7 +98,7 @@ export function UserManagementTab() {
             </select>
 
             <select
-              className="text-xs p-1.5 border rounded bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800"
+              className="text-xs p-1.5 border rounded bg-white border-stone-200"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -123,7 +123,7 @@ export function UserManagementTab() {
             </thead>
             <tbody>
               {filteredUsers.map((u) => (
-                <tr key={u.id} className={!u.active ? 'opacity-60 bg-stone-50 dark:bg-stone-950' : ''}>
+                <tr key={u.id} className={!u.active ? 'opacity-60 bg-stone-50' : ''}>
                   <td>
                     <div className="cell-stack">
                       <strong>{u.name}</strong>
@@ -138,7 +138,7 @@ export function UserManagementTab() {
                       {u.roles.map((r) => (
                         <span
                           key={r}
-                          className="text-[11px] px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700"
+                          className="text-[11px] px-1.5 py-0.5 rounded bg-stone-100 border border-stone-200"
                         >
                           {label(r)}
                         </span>
@@ -341,10 +341,10 @@ function CreateUserModal({
         </div>
 
         <div className="mt-4">
-          <span className="text-xs font-semibold uppercase text-stone-600 dark:text-stone-400">
+          <span className="text-xs font-semibold uppercase text-stone-600">
             Multiple Roles (Check all that apply)
           </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 p-3 border rounded bg-stone-50 dark:bg-stone-900 border-stone-200 dark:border-stone-800">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 p-3 border rounded bg-stone-50 border-stone-200">
             {roles.map((r) => (
               <label key={r.id} className="flex items-center gap-2 text-xs cursor-pointer">
                 <input
@@ -499,10 +499,10 @@ function EditUserModal({
         </div>
 
         <div className="mt-4">
-          <span className="text-xs font-semibold uppercase text-stone-600 dark:text-stone-400">
+          <span className="text-xs font-semibold uppercase text-stone-600">
             Assigned Roles
           </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 p-3 border rounded bg-stone-50 dark:bg-stone-900 border-stone-200 dark:border-stone-800">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 p-3 border rounded bg-stone-50 border-stone-200">
             {roles.map((r) => (
               <label key={r.id} className="flex items-center gap-2 text-xs cursor-pointer">
                 <input

@@ -11,7 +11,7 @@ test.describe('Production & Machine Floor Management', () => {
 
     // Breadcrumb and title
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Production');
-    await expect(page.locator('.page-heading h1')).toContainText('From yarn to something great.');
+    await expect(page.locator('.page-heading h1')).toContainText('Production board');
 
     // View switcher (Board / List)
     const segmentedControl = page.locator('.segmented-control');
@@ -40,7 +40,7 @@ test.describe('Production & Machine Floor Management', () => {
 
     // Title and board note
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Machine floor');
-    await expect(page.locator('.page-heading h1')).toContainText('A pulse on every machine');
+    await expect(page.locator('.page-heading h1')).toContainText('Machine floor');
     await expect(page.locator('.reported-pill')).toContainText('Operator-reported data');
 
     // Machine filter buttons

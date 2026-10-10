@@ -14,9 +14,10 @@ import { today } from '../../lib/utils';
 
 interface NewOrderModalProps {
   onClose: () => void;
+  buyerId?: string;
 }
 
-export function NewOrderModal({ onClose }: NewOrderModalProps) {
+export function NewOrderModal({ onClose, buyerId }: NewOrderModalProps) {
   const lookup = useLookups();
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export function NewOrderModal({ onClose }: NewOrderModalProps) {
   const form = useForm<OrderInput>({
     resolver: zodResolver(orderSchema),
     defaultValues: {
-      buyerId: '',
+      buyerId: buyerId ?? '',
       deadline: today(),
       priority: 'NORMAL',
       instructions: '',
@@ -41,7 +42,11 @@ export function NewOrderModal({ onClose }: NewOrderModalProps) {
     mutationFn: (body: OrderInput) => api<{ id: string }>('/orders', body),
     onSuccess: (data) => {
       void client.invalidateQueries();
-      toast.success('Order created. Ready to plan production.');
+      toast.success(
+        buyerId
+          ? 'Order sent. The factory will review it and you will see updates here.'
+          : 'Order placed successfully. Production scheduled.'
+      );
       onClose();
       navigate(`/orders/${data.id}`);
     },
@@ -51,23 +56,25 @@ export function NewOrderModal({ onClose }: NewOrderModalProps) {
     <Modal
       open
       onClose={onClose}
-      title="A new order starts here"
-      description="Add the buyer, fabric specifications and delivery commitment."
+      title={buyerId ? "Place New Fabric Order" : "A new order starts here"}
+      description={buyerId ? "Specify fabric, color, metres, and target delivery deadline." : "Add the buyer, fabric specifications and delivery commitment."}
       wide
     >
       <form onSubmit={form.handleSubmit((data) => create.mutate(data))}>
         <div className="form-grid">
-          <label className="field">
-            <span>Buyer *</span>
-            <select {...form.register('buyerId')}>
-              <option value="">Select a buyer</option>
-              {lookup.data?.buyers.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!buyerId && (
+            <label className="field">
+              <span>Buyer *</span>
+              <select {...form.register('buyerId')}>
+                <option value="">Select a buyer</option>
+                {lookup.data?.buyers.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="field">
             <span>Delivery deadline *</span>
             <input type="date" {...form.register('deadline')} />

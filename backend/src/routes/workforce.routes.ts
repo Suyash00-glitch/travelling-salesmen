@@ -4,7 +4,7 @@ import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { audit } from '../lib/domain.js';
 import { page, write } from '../lib/route-helpers.js';
-import { recordAttendance } from '../modules/workforce/workforce.service.js';
+import { recordAttendance } from '../operations.js';
 
 export const workforceRouter = Router();
 

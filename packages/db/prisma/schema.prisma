@@ -298,6 +298,8 @@ model Shipment {
   order SalesOrder @relation(fields:[orderId],references:[id])
   status String @default("DRAFT")
   transport String
+  driverName String @default("")
+  driverPhone String @default("")
   quantity Decimal @db.Decimal(14,3)
   createdAt DateTime @default(now())
   confirmedAt DateTime?

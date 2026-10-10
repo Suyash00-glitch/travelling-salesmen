@@ -152,7 +152,7 @@ test.describe('Guided Operator Role Experience', () => {
 
     // Navigate to production
     await page.goto('/production');
-    await expect(page.locator('.page-heading h1')).toContainText('From yarn to something great.');
+    await expect(page.locator('.page-heading h1')).toContainText('Production board');
 
     // Verify Spinning Operator Console guidance banner is visible
     await expect(page.locator('text=Spinning Operator Console')).toBeVisible();

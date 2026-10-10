@@ -10,7 +10,7 @@ test.describe('Quality Control & Roll Passport Traceability', () => {
     await page.goto('/quality');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Quality control');
-    await expect(page.locator('.page-heading h1')).toContainText('Quality in every thread');
+    await expect(page.locator('.page-heading h1')).toContainText('Quality inspection');
 
     // 4 KPI cards
     const kpis = page.locator('.kpi-grid .kpi');
@@ -59,7 +59,7 @@ test.describe('Quality Control & Roll Passport Traceability', () => {
     await page.goto('/rolls');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Finished rolls');
-    await expect(page.locator('.page-heading h1')).toContainText('Every roll has a story');
+    await expect(page.locator('.page-heading h1')).toContainText('Finished fabric rolls');
     await expect(page.locator('table.data-table tbody tr').first()).toBeVisible();
   });
 });

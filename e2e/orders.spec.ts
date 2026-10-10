@@ -11,7 +11,7 @@ test.describe('Orders & Order Details Journey', () => {
 
     // Breadcrumb and header
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Orders');
-    await expect(page.locator('.page-heading h1')).toContainText('Every order, in good hands');
+    await expect(page.locator('.page-heading h1')).toContainText('Orders');
 
     // Summary strip
     const summaryStrip = page.locator('.summary-strip');

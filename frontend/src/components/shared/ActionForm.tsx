@@ -1,10 +1,131 @@
-import {useForm,type DefaultValues} from 'react-hook-form';
-import {useMutation,useQueryClient} from '@tanstack/react-query';
-import {toast} from 'sonner';
-import {api} from '../../services/api';
-import {Modal} from '../ui/dialog';
-import {Button} from '../ui/button';
-import {Spinner} from './common';
-export interface Field {name:string;label:string;type?:'text'|'number'|'date'|'email'|'password'|'select'|'textarea';options?:{value:string;label:string}[];value?:string|number;required?:boolean;min?:number;max?:number;step?:string;hint?:string;span?:boolean}
-export interface FormSpec {title:string;description?:string;path:string;fields:Field[];transform?:(data:Record<string,string>)=>unknown;submit?:string}
-export function ActionForm({spec,onClose}:{spec:FormSpec;onClose:()=>void}){const client=useQueryClient();const {register,handleSubmit,formState:{errors}}=useForm<Record<string,string>>({defaultValues:Object.fromEntries(spec.fields.map(f=>[f.name,f.value??''])) as DefaultValues<Record<string,string>>});const mutation=useMutation({mutationFn:(body:unknown)=>api(spec.path,body),onSuccess:()=>{void client.invalidateQueries();toast.success('Saved successfully');onClose();}});return <Modal open onClose={onClose} title={spec.title} description={spec.description}><form onSubmit={handleSubmit(data=>mutation.mutate(spec.transform?spec.transform(data):data))}><div className="form-grid">{spec.fields.map(field=><label className={`field ${field.span?'field-wide':''}`} key={field.name}><span>{field.label}{field.required!==false&&<b> *</b>}</span>{field.type==='select'?<select {...register(field.name,{required:field.required!==false})}><option value="">Select {field.label.toLowerCase()}</option>{field.options?.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:field.type==='textarea'?<textarea {...register(field.name,{required:field.required!==false})} rows={3}/>:<input type={field.type??'text'} step={field.step??'any'} min={field.min} max={field.max} {...register(field.name,{required:field.required!==false,min:field.min,max:field.max})}/>} {field.hint&&<small>{field.hint}</small>}{errors[field.name]&&<small className="form-error">Enter a valid {field.label.toLowerCase()}.</small>}</label>)}</div>{mutation.error&&<div className="error-banner" role="alert">{mutation.error.message}</div>}<div className="dialog-footer"><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending}>{mutation.isPending&&<Spinner/>}{spec.submit??'Save changes'}</Button></div></form></Modal>;}
+import { useForm, type DefaultValues } from 'react-hook-form';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { api } from '../../services/api';
+import { Modal } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { Spinner } from './common';
+
+export interface Field {
+  name: string;
+  label: string;
+  type?: 'text' | 'number' | 'date' | 'email' | 'password' | 'select' | 'textarea';
+  options?: { value: string; label: string }[];
+  value?: string | number;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  step?: string;
+  hint?: string;
+  span?: boolean;
+}
+
+export interface FormSpec {
+  title: string;
+  description?: string;
+  path: string;
+  fields: Field[];
+  transform?: (data: Record<string, string>) => unknown;
+  submit?: string;
+}
+
+export function ActionForm({
+  spec,
+  onClose,
+}: {
+  spec: FormSpec;
+  onClose: () => void;
+}) {
+  const client = useQueryClient();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<Record<string, string>>({
+    defaultValues: Object.fromEntries(
+      spec.fields.map((f) => [f.name, f.value ?? '']),
+    ) as DefaultValues<Record<string, string>>,
+  });
+
+  const mutation = useMutation({
+    mutationFn: (body: unknown) => api(spec.path, body),
+    onSuccess: () => {
+      void client.invalidateQueries();
+      toast.success('Saved successfully');
+      onClose();
+    },
+  });
+
+  return (
+    <Modal open onClose={onClose} title={spec.title} description={spec.description}>
+      <form
+        onSubmit={handleSubmit((data) =>
+          mutation.mutate(spec.transform ? spec.transform(data) : data),
+        )}
+      >
+        <div className="form-grid">
+          {spec.fields.map((field) => (
+            <label
+              className={`field ${field.span ? 'field-wide' : ''}`}
+              key={field.name}
+            >
+              <span>
+                {field.label}
+                {field.required !== false && <b> *</b>}
+              </span>
+              {field.type === 'select' ? (
+                <select {...register(field.name, { required: field.required !== false })}>
+                  <option value="">Select {field.label.toLowerCase()}</option>
+                  {field.options?.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : field.type === 'textarea' ? (
+                <textarea
+                  {...register(field.name, { required: field.required !== false })}
+                  rows={3}
+                />
+              ) : (
+                <input
+                  type={field.type ?? 'text'}
+                  step={field.step ?? 'any'}
+                  min={field.min}
+                  max={field.max}
+                  {...register(field.name, {
+                    required: field.required !== false,
+                    min: field.min,
+                    max: field.max,
+                  })}
+                />
+              )}
+              {field.hint && <small>{field.hint}</small>}
+              {errors[field.name] && (
+                <small className="form-error">
+                  Enter a valid {field.label.toLowerCase()}.
+                </small>
+              )}
+            </label>
+          ))}
+        </div>
+
+        {mutation.error && (
+          <div className="error-banner" role="alert">
+            {mutation.error.message}
+          </div>
+        )}
+
+        <div className="dialog-footer">
+          <Button variant="outline" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={mutation.isPending}>
+            {mutation.isPending && <Spinner />}
+            {spec.submit ?? 'Save changes'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

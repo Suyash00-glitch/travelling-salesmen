@@ -4,8 +4,7 @@ import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { ensure, audit, sum } from '../lib/domain.js';
 import { id, write, empty } from '../lib/route-helpers.js';
-import { financialReport } from '../modules/reporting/reporting.service.js';
-import { buyerPayment } from '../modules/dispatch/dispatch.service.js';
+import { financialReport, buyerPayment } from '../operations.js';
 
 export const financeRouter = Router();
 

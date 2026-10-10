@@ -25,12 +25,79 @@ export function SettingsPage() {
     'Audit trail',
   ];
 
+  const openRecipeModal = () => {
+    setSpec({
+      title: 'Create fabric recipe',
+      path: '/recipes',
+      fields: [
+        { name: 'name', label: 'Recipe name' },
+        { name: 'material', label: 'Material type' },
+        { name: 'specification', label: 'Yarn specification' },
+        {
+          name: 'kgPerMetre',
+          label: 'Yarn kg per metre',
+          type: 'number',
+          min: 0.001,
+          value: 0.2,
+        },
+        {
+          name: 'wastePercent',
+          label: 'Planned waste (%)',
+          type: 'number',
+          min: 0,
+          max: 100,
+          value: 3,
+        },
+        {
+          name: 'overheadPerMetre',
+          label: 'Overhead / metre (₹)',
+          type: 'number',
+          min: 0,
+          value: 8,
+        },
+        {
+          name: 'route',
+          label: 'Manufacturing route',
+          type: 'select',
+          options: [
+            { value: 'WEAVING,DYEING', label: 'Weaving → Dyeing' },
+            {
+              value: 'SPINNING,WEAVING,DYEING',
+              label: 'Spinning → Weaving → Dyeing',
+            },
+            { value: 'WEAVING', label: 'Weaving only' },
+            {
+              value: 'SPINNING,WEAVING',
+              label: 'Spinning → Weaving',
+            },
+          ],
+        },
+      ],
+      transform: (d) => ({
+        ...d,
+        route: (d.route as string).split(','),
+      }),
+    });
+  };
+
+  const openBuyerModal = () => {
+    setSpec({
+      title: 'Add a buyer',
+      path: '/buyers',
+      fields: [
+        { name: 'name', label: 'Company name' },
+        { name: 'email', label: 'Email', type: 'email' },
+        { name: 'city', label: 'City' },
+      ],
+    });
+  };
+
   return (
     <>
       <PageHeader
         eyebrow="SUPER ADMIN CONTROL PANEL"
-        title="Access, Governance & Facilities"
-        description="Enforce enterprise role-based access control, configure manufacturing sites, and review immutable audit records."
+        title="Workspace settings"
+        description="Manage team access, factory sites, fabric recipes and the activity history."
       />
 
       <div className="settings-summary">
@@ -69,63 +136,7 @@ export function SettingsPage() {
           title="Recipes & production routes"
           subtitle="Material planning uses these per-fabric conversions; there is no universal kg-to-metre conversion."
           action={
-            <Button
-              size="sm"
-              onClick={() =>
-                setSpec({
-                  title: 'Create fabric recipe',
-                  path: '/recipes',
-                  fields: [
-                    { name: 'name', label: 'Recipe name' },
-                    { name: 'material', label: 'Material type' },
-                    { name: 'specification', label: 'Yarn specification' },
-                    {
-                      name: 'kgPerMetre',
-                      label: 'Yarn kg per metre',
-                      type: 'number',
-                      min: 0.001,
-                      value: 0.2,
-                    },
-                    {
-                      name: 'wastePercent',
-                      label: 'Planned waste (%)',
-                      type: 'number',
-                      min: 0,
-                      max: 100,
-                      value: 3,
-                    },
-                    {
-                      name: 'overheadPerMetre',
-                      label: 'Overhead / metre (₹)',
-                      type: 'number',
-                      min: 0,
-                      value: 8,
-                    },
-                    {
-                      name: 'route',
-                      label: 'Manufacturing route',
-                      type: 'select',
-                      options: [
-                        { value: 'WEAVING,DYEING', label: 'Weaving → Dyeing' },
-                        {
-                          value: 'SPINNING,WEAVING,DYEING',
-                          label: 'Spinning → Weaving → Dyeing',
-                        },
-                        { value: 'WEAVING', label: 'Weaving only' },
-                        {
-                          value: 'SPINNING,WEAVING',
-                          label: 'Spinning → Weaving',
-                        },
-                      ],
-                    },
-                  ],
-                  transform: (d) => ({
-                    ...d,
-                    route: (d.route as string).split(','),
-                  }),
-                })
-              }
-            >
+            <Button size="sm" onClick={openRecipeModal}>
               <Plus size={14} />
               New recipe
             </Button>
@@ -154,20 +165,7 @@ export function SettingsPage() {
         <Panel
           title="Buyer directory"
           action={
-            <Button
-              size="sm"
-              onClick={() =>
-                setSpec({
-                  title: 'Add a buyer',
-                  path: '/buyers',
-                  fields: [
-                    { name: 'name', label: 'Company name' },
-                    { name: 'email', label: 'Email', type: 'email' },
-                    { name: 'city', label: 'City' },
-                  ],
-                })
-              }
-            >
+            <Button size="sm" onClick={openBuyerModal}>
               <Plus size={14} />
               Add buyer
             </Button>

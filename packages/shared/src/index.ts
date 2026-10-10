@@ -65,7 +65,7 @@ export const ROLE_PERMISSIONS_TEMPLATE: Record<Role, string[]> = {
     'users:manage', 'roles:manage', 'dashboard:view'
   ],
   PRODUCTION_MANAGER: [
-    'orders:view', 'orders:update', 'inventory:view', 'production:manage',
+    'orders:view', 'orders:update', 'orders:approve', 'inventory:view', 'production:manage',
     'machines:view', 'machines:update', 'quality:view', 'rolls:view',
     'workforce:view', 'workforce:update', 'reports:view', 'dashboard:view'
   ],
@@ -111,7 +111,7 @@ export const ROLE_PERMISSIONS_TEMPLATE: Record<Role, string[]> = {
     'reports:manage', 'dashboard:view'
   ],
   BUYER: [
-    'orders:view', 'rolls:view', 'dispatch:view'
+    'orders:view', 'orders:create', 'orders:update', 'rolls:view', 'dispatch:view'
   ],
 };
 
@@ -131,6 +131,27 @@ export interface CurrentUser {
   departmentName?: string;
   active?: boolean;
 }
+
+// Stage operators may only see and update jobs for their own production stage.
+const operatorStages: Record<string, string> = {
+  SPINNING_OPERATOR: 'SPINNING',
+  WEAVING_OPERATOR: 'WEAVING',
+  DYEING_OPERATOR: 'DYEING',
+};
+
+export function stageForRole(role: string): string | null {
+  return operatorStages[role] ?? null;
+}
+
+// Plain-language names for job statuses shown on the floor.
+export const jobStatusLabels: Record<string, string> = {
+  PLANNED: 'Pending',
+  READY: 'Ready to Accept',
+  IN_PROGRESS: 'In Progress',
+  PAUSED: 'Paused',
+  BLOCKED: 'Blocked',
+  COMPLETED: 'Completed',
+};
 
 export function hasPermission(
   user: { role?: string; roles?: string[]; permissions?: string[] } | null | undefined,
@@ -189,13 +210,23 @@ const money = z.coerce.number().positive().max(100000000).multipleOf(0.01);
 const text = z.string().trim().min(1).max(200);
 
 export const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1).max(128) });
+export const signupSchema = z.object({
+  name: text,
+  email: z.string().email(),
+  password: z.string().min(10).max(128),
+  role: z.string(),
+  company: text.optional(),
+  city: text.optional(),
+}).refine((v) => v.role !== 'BUYER' || (Boolean(v.company) && Boolean(v.city)), {
+  message: 'Company name and city are required for buyer accounts.',
+});
 export const orderSchema = z.object({ buyerId: text, deadline: z.string().date(), priority: z.enum(['NORMAL', 'HIGH', 'URGENT']).default('NORMAL'), instructions: z.string().max(2000).default(''), items: z.array(z.object({ recipeId: text, fabric: text, color: text, quantity: positive, price: money })).min(1).max(20) });
 export const receiptSchema = z.object({ supplierId: text, purchaseId: z.string().optional(), reference: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, location: text, threshold: z.coerce.number().min(0).default(100) });
 export const reservationSchema = z.object({ productionId: text, lotId: text, quantity: positive });
 export const assignmentSchema = z.object({ machineId: text, workerId: text, shiftId: text });
 export const outputSchema = z.object({ quantity: positive, waste: z.coerce.number().min(0).max(10000).default(0), hours: positive, lotId: z.string().optional(), consumedKg: z.coerce.number().min(0).max(100000).default(0), rollLengths: z.array(positive).max(100).default([]) });
 export const inspectionSchema = z.object({ result: z.enum(['PASSED', 'REWORK', 'REJECTED']), defects: z.array(text).max(20).default([]), notes: z.string().max(2000).default('') }).refine(v => v.result === 'PASSED' || v.defects.length > 0, { message: 'Record at least one defect for a failed inspection.', path: ['defects'] });
-export const shipmentSchema = z.object({ orderId: text, rollIds: z.array(text).min(1).max(100), transport: text });
+export const shipmentSchema = z.object({ orderId: text, rollIds: z.array(text).min(1).max(100), transport: text, driverName: z.string().trim().max(120).default(''), driverPhone: z.string().trim().max(30).default('') });
 export const paymentSchema = z.object({ amount: money, reference: text });
 export const attendanceSchema = z.object({ workerId: text, shiftId: text, date: z.string().date(), hours: z.coerce.number().min(0).max(16), status: z.enum(['PRESENT', 'ABSENT', 'LEAVE']).default('PRESENT') });
 export const purchaseSchema = z.object({ supplierId: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, expectedAt: z.string().date() });

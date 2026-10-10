@@ -9,9 +9,8 @@ test.describe('Buyer Portal & Access Control Guards', () => {
     await expect(page).toHaveURL(/\/buyer/);
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Buyer workspace');
 
-    // Welcome banner and fabric artwork
-    await expect(page.locator('.buyer-welcome')).toBeVisible();
-    await expect(page.locator('.buyer-welcome h2')).toContainText('Your next delivery');
+    // Buyer status summary
+    await expect(page.getByRole('heading', { name: 'Your order status' })).toBeVisible();
 
     // Buyer order cards
     const orderCards = page.locator('.buyer-order-grid .buyer-order');
@@ -26,7 +25,7 @@ test.describe('Buyer Portal & Access Control Guards', () => {
     await tabs.filter({ hasText: 'Your shipments' }).click();
 
     // Shipment tracker should be shown
-    await expect(page.locator('.page-heading h1')).toContainText('Your deliveries.');
+    await expect(page.locator('.page-heading h1')).toContainText('Your deliveries');
   });
 
   test('guards prevent buyer from accessing administrative and internal operational areas', async ({ page }) => {

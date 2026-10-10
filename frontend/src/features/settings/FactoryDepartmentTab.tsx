@@ -14,6 +14,7 @@ import { api } from '../../services/api';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
 import { Badge, Panel, Spinner } from '../../components/shared/common';
+import { DataTable } from '../../components/tables/DataTable';
 
 export function FactoryDepartmentTab() {
   const client = useQueryClient();
@@ -69,108 +70,29 @@ export function FactoryDepartmentTab() {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Overview Stat Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
-        }}
-      >
-        <div
-          style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '8px',
-              background: 'rgba(59, 130, 246, 0.12)',
-              color: '#3b82f6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Building2 size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--muted)' }}>Total Facilities</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{factories.length}</div>
-          </div>
+    <>
+      {/* Overview Stat Strip */}
+      <div className="summary-strip">
+        <div>
+          <Building2 size={20} />
+          <span>
+            <strong>{factories.length}</strong>Operating sites
+          </span>
         </div>
-
-        <div
-          style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '8px',
-              background: 'rgba(16, 185, 129, 0.12)',
-              color: '#10b981',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Layers size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--muted)' }}>Departments</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{departments.length}</div>
-          </div>
+        <div>
+          <Layers size={20} />
+          <span>
+            <strong>{departments.length}</strong>Production units
+          </span>
         </div>
-
-        <div
-          style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            padding: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-          }}
-        >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '8px',
-              background: 'rgba(245, 158, 11, 0.12)',
-              color: '#f59e0b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Users size={24} />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--muted)' }}>Scoped Users</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>
+        <div>
+          <Users size={20} />
+          <span>
+            <strong>
               {factories.reduce((acc, f) => acc + (f.userCount || 0), 0)}
-            </div>
-          </div>
+            </strong>
+            Scoped personnel
+          </span>
         </div>
       </div>
 
@@ -180,61 +102,40 @@ export function FactoryDepartmentTab() {
         subtitle="Manage factories, spinning & weaving units, and processing centers."
         action={
           <Button size="sm" onClick={() => setCreateFactoryOpen(true)}>
-            <Plus size={14} /> New Facility
+            <Plus size={14} /> New facility
           </Button>
         }
       >
         {factoriesQuery.isPending ? (
           <Spinner />
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: '1rem',
-            }}
-          >
+          <div className="facility-grid">
             {factories.map((f) => (
-              <div
-                key={f.id}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: '10px',
-                  padding: '1.25rem',
-                  background: 'var(--surface, rgba(255,255,255,0.02))',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Building2 size={18} color="var(--accent)" />
-                    <span style={{ fontWeight: 600, fontSize: '1rem' }}>{f.name}</span>
+              <div key={f.id} className="facility-card">
+                <div className="facility-header">
+                  <div className="facility-title">
+                    <span className="entity-icon">
+                      <Building2 size={18} />
+                    </span>
+                    <strong>{f.name}</strong>
                   </div>
                   <Badge value={f.active ? 'PASSED' : 'OFFLINE'}>
                     {f.active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', color: 'var(--muted)', fontSize: '0.8125rem' }}>
+
+                <div className="facility-location">
                   <MapPin size={14} />
                   <span>{f.location || 'Surat Industrial Zone, Gujarat'}</span>
                 </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingTop: '0.75rem',
-                    borderTop: '1px solid var(--border)',
-                    fontSize: '0.8125rem',
-                    color: 'var(--muted)',
-                  }}
-                >
-                  <span>Code: <strong>{f.code}</strong></span>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <span>{f.departmentCount || 0} Departments</span>
-                    <span>{f.userCount || 0} Staff</span>
+
+                <div className="facility-meta">
+                  <span>
+                    Code: <strong>{f.code}</strong>
+                  </span>
+                  <div className="facility-tags">
+                    <span>{f.departmentCount || 0} units</span>
+                    <span>{f.userCount || 0} staff</span>
                   </div>
                 </div>
               </div>
@@ -257,55 +158,62 @@ export function FactoryDepartmentTab() {
               setCreateDeptOpen(true);
             }}
           >
-            <Plus size={14} /> New Department
+            <Plus size={14} /> New department
           </Button>
         }
       >
         {deptsQuery.isPending ? (
           <Spinner />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th>Department Name</th>
-                  <th>Code</th>
-                  <th>Facility</th>
-                  <th>Assigned Personnel</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {departments.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Layers size={16} color="var(--muted)" />
-                        <strong>{d.name}</strong>
-                      </div>
-                    </td>
-                    <td>
-                      <code style={{ fontSize: '0.8125rem', padding: '2px 6px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px' }}>
-                        {d.code}
-                      </code>
-                    </td>
-                    <td>{d.factoryName}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                        <Users size={14} color="var(--muted)" />
-                        <span>{d.userCount || 0} users</span>
-                      </div>
-                    </td>
-                    <td>
-                      <Badge value={d.active ? 'PASSED' : 'OFFLINE'}>
-                        {d.active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            data={departments}
+            columns={[
+              {
+                accessorKey: 'name',
+                header: 'Department name',
+                cell: ({ row }) => (
+                  <div className="buyer-cell">
+                    <span className="entity-icon">
+                      <Layers size={16} />
+                    </span>
+                    <div className="cell-stack">
+                      <strong>{row.original.name}</strong>
+                      <span className="muted">{row.original.factoryName}</span>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                accessorKey: 'code',
+                header: 'Code',
+                cell: ({ row }) => (
+                  <code className="audit-code">{row.original.code}</code>
+                ),
+              },
+              {
+                accessorKey: 'factoryName',
+                header: 'Parent facility',
+              },
+              {
+                accessorKey: 'userCount',
+                header: 'Personnel',
+                cell: ({ row }) => (
+                  <span className="tabular font-medium">
+                    {row.original.userCount || 0} staff
+                  </span>
+                ),
+              },
+              {
+                accessorKey: 'active',
+                header: 'Status',
+                cell: ({ row }) => (
+                  <Badge value={row.original.active ? 'PASSED' : 'OFFLINE'}>
+                    {row.original.active ? 'Active' : 'Inactive'}
+                  </Badge>
+                ),
+              },
+            ]}
+          />
         )}
       </Panel>
 
@@ -317,66 +225,69 @@ export function FactoryDepartmentTab() {
           title="Create Manufacturing Facility"
           description="Configure a new manufacturing site, weaving shed, or processing plant."
         >
-          <div style={{ padding: '0.5rem 0' }}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                createFactory.mutate(factoryForm);
-              }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-            >
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Facility Code
-                </label>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createFactory.mutate(factoryForm);
+            }}
+          >
+            <div className="form-grid">
+              <label className="field">
+                <span>Facility Code *</span>
                 <input
                   type="text"
                   required
                   placeholder="e.g. ETM-02"
                   value={factoryForm.code}
-                  onChange={(e) => setFactoryForm({ ...factoryForm, code: e.target.value.toUpperCase() })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setFactoryForm({
+                      ...factoryForm,
+                      code: e.target.value.toUpperCase(),
+                    })
+                  }
                 />
-              </div>
+              </label>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Facility Name
-                </label>
+              <label className="field">
+                <span>Facility Name *</span>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Everest Weaving Unit II"
                   value={factoryForm.name}
-                  onChange={(e) => setFactoryForm({ ...factoryForm, name: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setFactoryForm({ ...factoryForm, name: e.target.value })
+                  }
                 />
-              </div>
+              </label>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Location / City
-                </label>
+              <label className="field col-span-2">
+                <span>Location / City *</span>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Surat, Gujarat"
                   value={factoryForm.location}
-                  onChange={(e) => setFactoryForm({ ...factoryForm, location: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setFactoryForm({ ...factoryForm, location: e.target.value })
+                  }
                 />
-              </div>
+              </label>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <Button variant="ghost" type="button" onClick={() => setCreateFactoryOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createFactory.isPending}>
-                  {createFactory.isPending ? 'Creating...' : 'Create Facility'}
-                </Button>
-              </div>
-            </form>
-          </div>
+            <div className="dialog-footer">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setCreateFactoryOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createFactory.isPending}>
+                {createFactory.isPending ? 'Creating…' : 'Create facility'}
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
 
@@ -388,23 +299,21 @@ export function FactoryDepartmentTab() {
           title="Create Facility Department"
           description="Configure a dedicated unit or shopfloor department."
         >
-          <div style={{ padding: '0.5rem 0' }}>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                createDept.mutate(deptForm);
-              }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-            >
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Parent Facility
-                </label>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createDept.mutate(deptForm);
+            }}
+          >
+            <div className="form-grid">
+              <label className="field col-span-2">
+                <span>Parent Facility *</span>
                 <select
                   required
                   value={deptForm.factoryId}
-                  onChange={(e) => setDeptForm({ ...deptForm, factoryId: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setDeptForm({ ...deptForm, factoryId: e.target.value })
+                  }
                 >
                   <option value="">Select facility...</option>
                   {factories.map((f) => (
@@ -413,48 +322,53 @@ export function FactoryDepartmentTab() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Department Code
-                </label>
+              <label className="field">
+                <span>Department Code *</span>
                 <input
                   type="text"
                   required
                   placeholder="e.g. FIN-01"
                   value={deptForm.code}
-                  onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value.toUpperCase() })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setDeptForm({
+                      ...deptForm,
+                      code: e.target.value.toUpperCase(),
+                    })
+                  }
                 />
-              </div>
+              </label>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Department Name
-                </label>
+              <label className="field">
+                <span>Department Name *</span>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Quality & Lab"
                   value={deptForm.name}
-                  onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
-                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--input-bg, transparent)' }}
+                  onChange={(e) =>
+                    setDeptForm({ ...deptForm, name: e.target.value })
+                  }
                 />
-              </div>
+              </label>
+            </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-                <Button variant="ghost" type="button" onClick={() => setCreateDeptOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={createDept.isPending}>
-                  {createDept.isPending ? 'Creating...' : 'Create Department'}
-                </Button>
-              </div>
-            </form>
-          </div>
+            <div className="dialog-footer">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setCreateDeptOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createDept.isPending}>
+                {createDept.isPending ? 'Creating…' : 'Create department'}
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
-    </div>
+    </>
   );
 }

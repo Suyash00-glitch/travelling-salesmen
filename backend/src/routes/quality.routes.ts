@@ -5,8 +5,7 @@ import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { ensure } from '../lib/domain.js';
 import { page, id, write } from '../lib/route-helpers.js';
-import { rollPassport } from '../modules/reporting/reporting.service.js';
-import { inspectRoll, reworkRoll } from '../modules/quality/quality.service.js';
+import { rollPassport, inspectRoll, reworkRoll } from '../operations.js';
 
 export const qualityRouter = Router();
 

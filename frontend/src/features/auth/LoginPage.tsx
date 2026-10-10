@@ -27,10 +27,17 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
   const demoAccounts = [
     { label: 'Super Admin', email: 'owner@loomos.demo' },
     { label: 'Production Mgr', email: 'production@loomos.demo' },
+    { label: 'Inventory Mgr', email: 'inventory@loomos.demo' },
+    { label: 'Procurement Mgr', email: 'procurement@loomos.demo' },
     { label: 'Spinning Operator', email: 'spinning@loomos.demo' },
     { label: 'Weaving Operator', email: 'weaving@loomos.demo' },
     { label: 'Dyeing Operator', email: 'dyeing@loomos.demo' },
+    { label: 'Quality Inspector', email: 'quality@loomos.demo' },
+    { label: 'Dispatch Mgr', email: 'dispatch@loomos.demo' },
+    { label: 'Shift Supervisor', email: 'supervisor@loomos.demo' },
+    { label: 'Accounts Mgr', email: 'accounts@loomos.demo' },
     { label: 'Buyer Portal', email: 'buyer@loomos.demo' },
+    { label: 'Buyer · Fabindia', email: 'fabindia@loomos.demo' },
   ];
 
   const handleSelectDemo = (demoEmail: string) => {
@@ -144,37 +151,30 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
             </label>
 
             {/* Quick-fill Demo accounts pills */}
-            <div style={{ margin: '0.25rem 0 0.75rem' }}>
+            <div style={{ margin: '8px 0 16px' }}>
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.375rem',
-                  fontSize: '0.75rem',
+                  gap: '6px',
+                  fontSize: '11px',
                   color: 'var(--muted)',
-                  marginBottom: '0.375rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: '6px',
                 }}
               >
                 <UserCheck size={13} />
-                <span>Quick Fill Demo Roles:</span>
+                <span>Quick Fill Demo Roles</span>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+              <div className="demo-pills">
                 {demoAccounts.map((acc) => (
                   <button
                     key={acc.email}
                     type="button"
                     onClick={() => handleSelectDemo(acc.email)}
-                    style={{
-                      padding: '3px 8px',
-                      fontSize: '0.75rem',
-                      borderRadius: '5px',
-                      border: '1px solid var(--border)',
-                      background: email === acc.email ? 'var(--accent)' : 'var(--panel)',
-                      color: email === acc.email ? '#fff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontWeight: email === acc.email ? 600 : 400,
-                      transition: 'all 0.15s ease',
-                    }}
+                    className={`demo-pill ${email === acc.email ? 'active' : ''}`}
                   >
                     {acc.label}
                   </button>
@@ -200,7 +200,7 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
             <span className="demo-dot" />
             <div>
               <strong>Demonstration workspace</strong>
-              <p>Demo accounts use password: <code style={{ fontWeight: 600, color: 'var(--accent)' }}>LoomDemo2026!</code></p>
+              <p>Demo accounts use password: <code className="audit-code">LoomDemo2026!</code></p>
             </div>
           </div>
 

@@ -1,23 +1,446 @@
-import {useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {Area,AreaChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis,ReferenceLine} from 'recharts';
-import {ArrowUpRight,ArrowRight,ShoppingBag,Activity,Factory,ShieldCheck,CalendarDays,TriangleAlert,Package,CheckCircle2,Layers} from 'lucide-react';
-import type {Dashboard,OrderSummary} from '@loomos/shared';
-import {can} from '@loomos/shared';
-import type {ColumnDef} from '@tanstack/react-table';
-import {useData} from '../../hooks/useFactory';
-import {useAuth} from '../auth/Auth';
-import {Badge,Kpi,Panel,PageHeader,Progress,Loading,ErrorState,TextLink,Empty,ExportButton} from '../../components/shared/common';
-import {DataTable} from '../../components/tables/DataTable';
-import {number,date,today,exportCsv} from '../../lib/utils';
-export function DashboardPage(){const {user}=useAuth();const [day,setDay]=useState(today());const navigate=useNavigate();const query=useData<Dashboard>(`/dashboard?date=${day}`);if(query.isPending)return <Loading/>;if(query.error)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>;const d=query.data!;const delta=Number(d.previousOutput)>0?Math.round((Number(d.todayOutput)-Number(d.previousOutput))/Number(d.previousOutput)*100):null;
-const columns:ColumnDef<OrderSummary>[]=[{accessorKey:'number',header:'Order',cell:({row})=><div className="cell-stack"><strong className="order-number">{row.original.number}</strong><span>{row.original.items[0]?.fabric}</span></div>},{accessorKey:'buyer.name',header:'Buyer',cell:({row})=><div className="buyer-cell"><span className="avatar avatar-small">{row.original.buyer.initials}</span>{row.original.buyer.name}</div>},{accessorKey:'progress',header:'Production',cell:({row})=><Progress value={row.original.progress} label={`${row.original.progress}%`}/>},{accessorKey:'deadline',header:'Due date',cell:({row})=><span>{date(row.original.deadline).replace(' 2026','')}</span>},{accessorKey:'status',header:'Status',cell:({row})=><Badge value={row.original.status}/>}];
-return <><PageHeader eyebrow="YOUR FACTORY, AT A GLANCE" title={`Good ${new Date().getHours()<12?'morning':new Date().getHours()<17?'afternoon':'evening'}, ${user.name.split(' ')[0]} ☀`} description="Here’s what’s happening across your mill today."><label className="date-button"><CalendarDays size={16}/><input type="date" aria-label="Reporting date" value={day} max={today()} onChange={e=>setDay(e.target.value||today())}/></label><ExportButton onClick={()=>exportCsv('factory-overview',d.series)}/></PageHeader>
-<div className="overview-ribbon"><span><span className="ribbon-dot"/> THE FLOOR IS MOVING</span><p><strong>{d.running} machines</strong> running. <strong>{d.activeOrders} orders</strong> in motion. Let’s make it a productive day.</p><button onClick={()=>navigate(can(user.role,'machines')?'/machines':'/reports')}>View factory floor <ArrowUpRight size={15}/></button></div>
-<div className="kpi-grid"><Kpi label="Active orders" value={number(d.activeOrders)} icon={<ShoppingBag size={19}/>} meta={<><span className="metric-tag">{d.dueSoon} due soon</span><span>Across your buyers</span></>}/><Kpi label="Reported production" value={number(d.todayOutput)} unit="m" icon={<Activity size={19}/>} accent meta={<><span className="metric-tag"><ArrowUpRight size={12}/>{delta===null?'Today':`${delta>0?'+':''}${delta}%`}</span><span>vs. previous day</span></>}/><Kpi label="Machines running" value={<>{d.running}<span className="value-denominator">/ {d.totalMachines}</span></>} icon={<Factory size={19}/>} meta={<><span className="tiny-dot green"/>{d.idle} idle <span className="tiny-dot red"/>{d.breakdown} breakdown</>}/><Kpi label="Awaiting inspection" value={number(d.pendingQuality)} unit="rolls" icon={<ShieldCheck size={19}/>} meta={<><span className="metric-tag neutral">{d.finishedRolls} ready</span><span>In finished inventory</span></>}/></div>
-<div className="dashboard-middle"><Panel title="Production overview" subtitle="Reported output across all production stages" action={<span className="chart-period">Last 7 days</span>} className="production-chart-panel"><div className="chart-summary"><strong>{number(d.series.reduce((sum,p)=>sum+p.output,0))}<small>metres</small></strong><div className="chart-legend"><span><i/>Reported output</span><span><i/>Shift capacity</span></div></div><div className="production-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={d.series} margin={{left:0,right:16,top:20,bottom:0}}><defs><linearGradient id="outputFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#318c70" stopOpacity={0.2}/><stop offset="95%" stopColor="#318c70" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e9ece7"/><XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill:'#89918b',fontSize:11}} dy={10}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#89918b',fontSize:10}} width={46} tickFormatter={v=>v>=1000?`${v/1000}k`:String(v)}/><Tooltip contentStyle={{border:'1px solid #e2e7df',borderRadius:10,fontSize:12}} formatter={(value)=>[`${number(Number(value))} m`,'Output']}/><ReferenceLine y={d.series[0]?.target??0} stroke="#b8c4ad" strokeDasharray="5 5"/><Area type="monotone" dataKey="output" stroke="#278369" strokeWidth={2.5} fill="url(#outputFill)" activeDot={{r:5,stroke:'#fff',strokeWidth:3}}/></AreaChart></ResponsiveContainer></div><div className="chart-bottom"><span><span className="tiny-dot green"/> Updated from production entries</span><span>IST · {date(day)}</span></div></Panel>
-<Panel title="Needs your attention" subtitle="A little focus goes a long way" action={<span className="count-pill">{d.alerts.length}</span>} className="attention-panel"><div className="alert-list">{d.alerts.slice(0,3).map(alert=><button className={`alert-card alert-${alert.severity}`} key={alert.id} onClick={()=>navigate(alert.href)}><span className="alert-icon">{alert.severity==='danger'?<Factory size={17}/>:alert.href.includes('inventory')?<Package size={17}/>:<TriangleAlert size={17}/>}</span><div><strong>{alert.title}</strong><p>{alert.description}</p><span>Review details <ArrowRight size={12}/></span></div></button>)}{!d.alerts.length&&<Empty title="All looking good" description="No action needed right now."/>}</div><button className="all-alerts" onClick={()=>navigate(d.alerts[0]?.href??'/reports')}>Review factory status<ArrowRight size={14}/></button></Panel></div>
-<div className="dashboard-bottom"><Panel title="Orders in focus" subtitle="From the first thread to the final delivery" action={can(user.role,'orders')?<TextLink onClick={()=>navigate('/orders')}>All orders</TextLink>:undefined}>{can(user.role,'orders')?<DataTable data={d.orders} columns={columns} compact onRow={o=>navigate(`/orders/${o.id}`)}/>:<div className="role-note">{d.activeOrders} buyer orders are in progress across the factory.</div>}</Panel><Panel title="The factory floor" subtitle="Operator-reported machine status" action={can(user.role,'machines')?<button className="icon-button" onClick={()=>navigate('/machines')} aria-label="Open machine floor"><ArrowUpRight size={18}/></button>:undefined}><div className="mini-machine-grid">{d.machines.map(m=><button className={`mini-machine ${m.status.toLowerCase()}`} key={m.id} onClick={()=>can(user.role,'machines')&&navigate('/machines')} disabled={!can(user.role,'machines')} title={`${m.name}: ${m.status}`}><Factory size={21}/><span>{m.code}</span><i/></button>)}</div><div className="floor-legend"><span><i className="green"/>Running</span><span><i className="amber"/>Idle</span><span><i className="red"/>Breakdown</span><span><i className="gray"/>Other</span></div></Panel></div>
-<div className="dashboard-tail"><Panel title="Recent activity" action={<span className="muted text-xs">Your factory’s latest chapter</span>}><div className="activity-strip">{d.activity.slice(0,4).map(a=><div key={a.id}><span className="activity-icon">{a.action.includes('quality')?<ShieldCheck size={16}/>:a.action.includes('shipment')?<TruckIcon/>:a.action.includes('production')?<Activity size={16}/>:<CheckCircle2 size={16}/>}</span><div><strong>{a.detail}</strong><span>{a.actorName} · {new Date(a.createdAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})}</span></div></div>)}</div></Panel></div></>;
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ReferenceLine,
+} from 'recharts';
+import {
+  ArrowUpRight,
+  ArrowRight,
+  ShoppingBag,
+  Activity,
+  Factory,
+  ShieldCheck,
+  CalendarDays,
+  TriangleAlert,
+  Package,
+  CheckCircle2,
+  Layers,
+} from 'lucide-react';
+import type { Dashboard, OrderSummary } from '@loomos/shared';
+import { can } from '@loomos/shared';
+import type { ColumnDef } from '@tanstack/react-table';
+import { useData } from '../../hooks/useFactory';
+import { PreviewButton } from '../../components/shared/PreviewButton';
+import { MachineIcon, MachinePreview } from '../../components/shared/MachinePreview';
+import { useAuth } from '../auth/Auth';
+import {
+  Badge,
+  Kpi,
+  Panel,
+  PageHeader,
+  Progress,
+  Loading,
+  ErrorState,
+  TextLink,
+  Empty,
+  ExportButton,
+} from '../../components/shared/common';
+import { DataTable } from '../../components/tables/DataTable';
+import { FactoryInsights } from '../../components/shared/FactoryInsights';
+import { number, date, today, exportCsv, label } from '../../lib/utils';
+
+export function DashboardPage() {
+  const { user } = useAuth();
+  const [day, setDay] = useState(today());
+  const navigate = useNavigate();
+  const query = useData<Dashboard>(`/dashboard?date=${day}`);
+
+  if (query.isPending) return <Loading />;
+  if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
+
+  const d = query.data!;
+  const delta =
+    Number(d.previousOutput) > 0
+      ? Math.round(
+          ((Number(d.todayOutput) - Number(d.previousOutput)) / Number(d.previousOutput)) * 100
+        )
+      : null;
+
+  const columns: ColumnDef<OrderSummary>[] = [
+    {
+      accessorKey: 'number',
+      header: 'Order',
+      cell: ({ row }) => (
+        <div className="cell-stack">
+          <strong className="order-number">{row.original.number}</strong>
+          <span>{row.original.items[0]?.fabric}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'buyer.name',
+      header: 'Buyer',
+      cell: ({ row }) => (
+        <div className="buyer-cell">
+          <span className="avatar avatar-small">{row.original.buyer.initials}</span>
+          {row.original.buyer.name}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'progress',
+      header: 'Production',
+      cell: ({ row }) => (
+        <Progress value={row.original.progress} label={`${row.original.progress}%`} />
+      ),
+    },
+    {
+      accessorKey: 'deadline',
+      header: 'Due date',
+      cell: ({ row }) => <span>{date(row.original.deadline).replace(' 2026', '')}</span>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => <Badge value={row.original.status} />,
+    },
+  ];
+
+  const greetingTime =
+    new Date().getHours() < 12
+      ? 'morning'
+      : new Date().getHours() < 17
+        ? 'afternoon'
+        : 'evening';
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="YOUR FACTORY, AT A GLANCE"
+        title={`Good ${greetingTime}, ${user.name.split(' ')[0]} ☀`}
+        description="Here’s what’s happening across your mill today."
+      >
+        <label className="date-button">
+          <CalendarDays size={16} />
+          <input
+            type="date"
+            aria-label="Reporting date"
+            value={day}
+            max={today()}
+            onChange={(e) => setDay(e.target.value || today())}
+          />
+        </label>
+        <ExportButton onClick={() => exportCsv('factory-overview', d.series)} />
+      </PageHeader>
+
+      <div className="overview-ribbon">
+        <span>
+          <span className="ribbon-dot" /> THE FLOOR IS MOVING
+        </span>
+        <p>
+          <strong>{d.running} machines</strong> running. <strong>{d.activeOrders} orders</strong> in motion. Let’s make it a productive day.
+        </p>
+        <button
+          onClick={() => navigate(can(user.role, 'machines') ? '/machines' : '/reports')}
+        >
+          View factory floor <ArrowUpRight size={15} />
+        </button>
+      </div>
+
+      <div className="kpi-grid">
+        <Kpi
+          label="Active orders"
+          value={number(d.activeOrders)}
+          icon={<ShoppingBag size={19} />}
+          meta={
+            <>
+              <span className="metric-tag">{d.dueSoon} due soon</span>
+              <span>Across your buyers</span>
+            </>
+          }
+        />
+        <Kpi
+          label="Reported production"
+          value={number(d.todayOutput)}
+          unit="m"
+          icon={<Activity size={19} />}
+          accent
+          meta={
+            <>
+              <span className="metric-tag">
+                <ArrowUpRight size={12} />
+                {delta === null ? 'Today' : `${delta > 0 ? '+' : ''}${delta}%`}
+              </span>
+              <span>vs. previous day</span>
+            </>
+          }
+        />
+        <Kpi
+          label="Machines running"
+          value={
+            <>
+              {d.running}
+              <span className="value-denominator">/ {d.totalMachines}</span>
+            </>
+          }
+          icon={<Factory size={19} />}
+          meta={
+            <>
+              <span className="tiny-dot green" />
+              {d.idle} idle <span className="tiny-dot red" />
+              {d.breakdown} breakdown
+            </>
+          }
+        />
+        <Kpi
+          label="Awaiting inspection"
+          value={number(d.pendingQuality)}
+          unit="rolls"
+          icon={<ShieldCheck size={19} />}
+          meta={
+            <>
+              <span className="metric-tag neutral">{d.finishedRolls} ready</span>
+              <span>In finished inventory</span>
+            </>
+          }
+        />
+      </div>
+
+      <div className="dashboard-middle">
+        <Panel
+          title="Production overview"
+          subtitle="Reported output across all production stages"
+          action={<span className="chart-period">Last 7 days</span>}
+          className="production-chart-panel"
+        >
+          <div className="chart-summary">
+            <strong>
+              {number(d.series.reduce((sum, p) => sum + p.output, 0))}
+              <small>metres</small>
+            </strong>
+            <div className="chart-legend">
+              <span>
+                <i />
+                Reported output
+              </span>
+              <span>
+                <i />
+                Shift capacity
+              </span>
+            </div>
+          </div>
+          <div className="production-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={d.series} margin={{ left: 0, right: 16, top: 20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="outputFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#318c70" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#318c70" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e9ece7" />
+                <XAxis
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#89918b', fontSize: 11 }}
+                  dy={10}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#89918b', fontSize: 10 }}
+                  width={46}
+                  tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
+                />
+                <Tooltip
+                  contentStyle={{ border: '1px solid #e2e7df', borderRadius: 10, fontSize: 12 }}
+                  formatter={(value) => [`${number(Number(value))} m`, 'Output']}
+                />
+                <ReferenceLine
+                  ifOverflow="extendDomain"
+                  y={d.series[0]?.target ?? 0}
+                  stroke="#b8c4ad"
+                  strokeDasharray="5 5"
+                />
+                <Area
+                  isAnimationActive={false}
+                  type="monotone"
+                  dataKey="output"
+                  stroke="#278369"
+                  strokeWidth={2.5}
+                  fill="url(#outputFill)"
+                  activeDot={{ r: 5, stroke: '#fff', strokeWidth: 3 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="chart-bottom">
+            <span>
+              <span className="tiny-dot green" /> Updated from production entries
+            </span>
+            <span>IST · {date(day)}</span>
+          </div>
+        </Panel>
+
+        <Panel
+          title="Needs your attention"
+          subtitle="A little focus goes a long way"
+          action={<span className="count-pill">{d.alerts.length}</span>}
+          className="attention-panel"
+        >
+          <div className="alert-list">
+            {d.alerts.slice(0, 3).map((alert) => (
+              <button
+                className={`alert-card alert-${alert.severity}`}
+                key={alert.id}
+                onClick={() => navigate(alert.href)}
+              >
+                <span className="alert-icon">
+                  {alert.severity === 'danger' ? (
+                    <Factory size={17} />
+                  ) : alert.href.includes('inventory') ? (
+                    <Package size={17} />
+                  ) : (
+                    <TriangleAlert size={17} />
+                  )}
+                </span>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <p>{alert.description}</p>
+                  <span>
+                    Review details <ArrowRight size={12} />
+                  </span>
+                </div>
+              </button>
+            ))}
+            {!d.alerts.length && (
+              <Empty
+                title="All looking good"
+                description="No action needed right now."
+              />
+            )}
+          </div>
+          <button
+            className="all-alerts"
+            onClick={() => navigate(d.alerts[0]?.href ?? '/reports')}
+          >
+            Review factory status
+            <ArrowRight size={14} />
+          </button>
+        </Panel>
+      </div>
+
+      <FactoryInsights data={d} />
+
+      <div className="dashboard-bottom">
+        <Panel
+          title="Orders in focus"
+          subtitle="From the first thread to the final delivery"
+          action={
+            can(user.role, 'orders') ? (
+              <TextLink onClick={() => navigate('/orders')}>All orders</TextLink>
+            ) : undefined
+          }
+        >
+          {can(user.role, 'orders') ? (
+            <DataTable
+              data={d.orders}
+              columns={columns}
+              compact
+              onRow={(o) => navigate(`/orders/${o.id}`)}
+            />
+          ) : (
+            <div className="role-note">
+              {d.activeOrders} buyer orders are in progress across the factory.
+            </div>
+          )}
+        </Panel>
+
+        <Panel
+          title="The factory floor"
+          subtitle="Operator-reported machine status"
+          action={
+            can(user.role, 'machines') ? (
+              <button
+                className="icon-button"
+                onClick={() => navigate('/machines')}
+                aria-label="Open machine floor"
+              >
+                <ArrowUpRight size={18} />
+              </button>
+            ) : undefined
+          }
+        >
+          <div className="mini-machine-grid">
+            {d.machines.map((m) => (
+              <PreviewButton
+                className={`mini-machine ${m.status.toLowerCase()}`}
+                key={m.id}
+                label={`Open ${m.code} ${m.name}`}
+                preview={<MachinePreview machine={m} />}
+                onClick={() => can(user.role, 'machines') && navigate(`/machines?machine=${m.id}`)}
+              >
+                <MachineIcon type={m.type} size={21} />
+                <span>{m.code}</span>
+                <small>{label(m.type)}</small>
+                <i />
+              </PreviewButton>
+            ))}
+          </div>
+          <div className="floor-legend">
+            <span>
+              <i className="green" />
+              Running
+            </span>
+            <span>
+              <i className="amber" />
+              Idle
+            </span>
+            <span>
+              <i className="red" />
+              Breakdown
+            </span>
+            <span>
+              <i className="gray" />
+              Other
+            </span>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="dashboard-tail">
+        <Panel
+          title="Recent activity"
+          action={<span className="muted text-xs">Your factory’s latest chapter</span>}
+        >
+          <div className="activity-strip">
+            {d.activity.slice(0, 4).map((a) => (
+              <div key={a.id}>
+                <span className="activity-icon">
+                  {a.action.includes('quality') ? (
+                    <ShieldCheck size={16} />
+                  ) : a.action.includes('shipment') ? (
+                    <Layers size={16} />
+                  ) : a.action.includes('production') ? (
+                    <Activity size={16} />
+                  ) : (
+                    <CheckCircle2 size={16} />
+                  )}
+                </span>
+                <div>
+                  <strong>{a.detail}</strong>
+                  <span>
+                    {a.actorName} ·{' '}
+                    {new Date(a.createdAt).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Asia/Kolkata',
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
 }
-function TruckIcon(){return <Layers size={16}/>;}

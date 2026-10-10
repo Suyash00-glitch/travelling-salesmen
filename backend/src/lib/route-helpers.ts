@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import type { Request, Router } from 'express';
 import { z } from 'zod';
 import type { Tx } from '@loomos/db';
-import type { Area } from '@loomos/shared';
+import { hasPermission, type Area } from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { mutate, type Actor } from './domain.js';
+import { DomainError, mutate, type Actor } from './domain.js';
+import { publish } from './events.js';
 
 export const empty = z.object({});
 export const reason = z.object({ reason: z.string().trim().min(3).max(1000) });
@@ -32,6 +33,12 @@ export function write<S extends z.ZodTypeAny>(
   fn: (tx: Tx, input: z.infer<S>, actor: Actor, req: Request) => Promise<unknown>,
 ): void {
   router.post(path, authorize(area), async (req, res) => {
+    // Seeing an area is not enough to change it: view-only roles are refused here.
+    const canWrite = ['create', 'update', 'approve'].some((action) =>
+      hasPermission(req.actor, area, action),
+    );
+    if (!canWrite) throw new DomainError(403, 'Your role can view this area but not change it.');
+
     const input = schema.parse(req.body);
     const fingerprint = createHash('sha256')
       .update(`${req.path}:${JSON.stringify(input)}`)
@@ -44,6 +51,7 @@ export function write<S extends z.ZodTypeAny>(
       (tx) => fn(tx, input, req.actor, req),
     );
 
+    publish(area);
     res.json(result);
   });
 }

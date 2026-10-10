@@ -1,6 +1,127 @@
-import {useState} from 'react';
-import {flexRender,getCoreRowModel,getSortedRowModel,getPaginationRowModel,useReactTable,type ColumnDef,type SortingState} from '@tanstack/react-table';
-import {ArrowDownUp,ChevronLeft,ChevronRight} from 'lucide-react';
-import {Empty} from '../shared/common';
-import {Button} from '../ui/button';
-export function DataTable<T>({data,columns,onRow,compact=false}:{data:T[];columns:ColumnDef<T>[];onRow?:(row:T)=>void;compact?:boolean}){const [sorting,setSorting]=useState<SortingState>([]);const table=useReactTable({data,columns,state:{sorting},onSortingChange:setSorting,getCoreRowModel:getCoreRowModel(),getSortedRowModel:getSortedRowModel(),getPaginationRowModel:getPaginationRowModel(),initialState:{pagination:{pageSize:compact?5:10}}});if(!data.length)return <Empty/>;return <><div className="table-scroll"><table className="data-table"><thead>{table.getHeaderGroups().map(group=><tr key={group.id}>{group.headers.map(header=><th key={header.id}><button disabled={!header.column.getCanSort()} onClick={header.column.getToggleSortingHandler()}>{flexRender(header.column.columnDef.header,header.getContext())}{header.column.getCanSort()&&<ArrowDownUp size={11}/>}</button></th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map(row=><tr key={row.id} className={onRow?'clickable-row':''} onClick={()=>onRow?.(row.original)}>{row.getVisibleCells().map(cell=><td key={cell.id}>{flexRender(cell.column.columnDef.cell,cell.getContext())}</td>)}</tr>)}</tbody></table></div>{!compact&&<div className="table-footer"><span>{data.length} records <span className="muted">· Page {table.getState().pagination.pageIndex+1} of {table.getPageCount()}</span></span><div><Button variant="outline" size="icon" disabled={!table.getCanPreviousPage()} onClick={()=>table.previousPage()} aria-label="Previous page"><ChevronLeft size={16}/></Button><Button variant="outline" size="icon" disabled={!table.getCanNextPage()} onClick={()=>table.nextPage()} aria-label="Next page"><ChevronRight size={16}/></Button></div></div>}</>;}
+import { useState } from 'react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
+import { ArrowDownUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Empty } from '../shared/common';
+import { Button } from '../ui/button';
+
+export function DataTable<T>({
+  data,
+  columns,
+  onRow,
+  compact = false,
+}: {
+  data: T[];
+  columns: ColumnDef<T>[];
+  onRow?: (row: T) => void;
+  compact?: boolean;
+}) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: { pageSize: compact ? 5 : 10 },
+    },
+  });
+
+  if (!data.length) {
+    return <Empty />;
+  }
+
+  return (
+    <>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            {table.getHeaderGroups().map((group) => (
+              <tr key={group.id}>
+                {group.headers.map((header) => (
+                  <th key={header.id}>
+                    <button
+                      disabled={!header.column.getCanSort()}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getCanSort() && <ArrowDownUp size={11} />}
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                className={onRow ? 'clickable-row' : ''}
+                tabIndex={onRow ? 0 : undefined}
+                onKeyDown={(e) => {
+                  if (onRow && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onRow(row.original);
+                  }
+                }}
+                onClick={(e) => {
+                  if (!(e.target as HTMLElement).closest('button,a,input,select')) {
+                    onRow?.(row.original);
+                  }
+                }}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {!compact && (
+        <div className="table-footer">
+          <span>
+            {data.length} records{' '}
+            <span className="muted">
+              · Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+            </span>
+          </span>
+          <div>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+              aria-label="Next page"
+            >
+              <ChevronRight size={16} />
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

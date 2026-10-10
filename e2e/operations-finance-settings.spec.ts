@@ -10,7 +10,7 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await page.goto('/inventory');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Inventory');
-    await expect(page.locator('.page-heading h1')).toContainText('Good fabric starts here');
+    await expect(page.locator('.page-heading h1')).toContainText('Yarn inventory');
 
     // KPIs
     const kpis = page.locator('.kpi-grid .kpi');
@@ -37,7 +37,7 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await page.goto('/procurement');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Procurement');
-    await expect(page.locator('.page-heading h1')).toContainText('Always a thread ahead');
+    await expect(page.locator('.page-heading h1')).toContainText('Purchasing & suppliers');
 
     // Suppliers grid
     const supplierCards = page.locator('.supplier-card');
@@ -52,19 +52,19 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await page.goto('/dispatch');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Dispatch');
-    await expect(page.locator('.page-heading h1')).toContainText('The final mile, done right.');
+    await expect(page.locator('.page-heading h1')).toContainText('Dispatch & logistics');
 
-    // Shipment cards
-    const shipmentCards = page.locator('.shipment-card');
-    expect(await shipmentCards.count()).toBeGreaterThan(0);
-    await expect(shipmentCards.first().locator('.shipment-route')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cargo loading plan' })).toBeVisible();
+    await expect(page.locator('.fleet-item').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Manifest', exact: true }).first().click();
+    await expect(page.getByRole('dialog')).toContainText('Cargo manifest');
   });
 
   test('views workforce page with shift schedule and worker details modal', async ({ page }) => {
     await page.goto('/workforce');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Workers & shifts');
-    await expect(page.locator('.page-heading h1')).toContainText('The people behind every metre');
+    await expect(page.locator('.page-heading h1')).toContainText('Workers & shifts');
 
     // Summary strip
     await expect(page.locator('.summary-strip')).toContainText('Team members');
@@ -90,7 +90,7 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await page.goto('/finance');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Finance');
-    await expect(page.locator('.page-heading h1')).toContainText('Know what every metre means');
+    await expect(page.locator('.page-heading h1')).toContainText('Finance overview');
 
     // KPIs
     const kpis = page.locator('.kpi-grid .kpi');
@@ -99,7 +99,7 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await expect(kpis.nth(1)).toContainText('Payments received');
 
     // Cost chart panel
-    await expect(page.locator('.panel', { hasText: 'Where the cost goes' })).toBeVisible();
+    await expect(page.locator('.panel', { hasText: 'Production cost breakdown' })).toBeVisible();
     await expect(page.locator('.panel', { hasText: 'The bigger picture' })).toBeVisible();
 
     // Tabs
@@ -117,7 +117,7 @@ test.describe('Operations, Finance, Reports & Settings', () => {
     await page.goto('/reports');
 
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Reports');
-    await expect(page.locator('.report-intro')).toContainText('THE OPERATIONS BRIEF');
+    await expect(page.getByRole('heading', { name: 'Production by day' })).toBeVisible();
 
     // Machine output report table
     await expect(page.locator('.panel', { hasText: 'Machine output report' })).toBeVisible();
