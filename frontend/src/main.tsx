@@ -7,6 +7,8 @@ import { AuthGate } from './features/auth/Auth';
 import { App } from './app/App';
 import './styles/globals.css';
 import './styles/theme.css';
+import './styles/features.css';
+import './styles/loom.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

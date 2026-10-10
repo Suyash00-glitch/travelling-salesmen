@@ -9,7 +9,7 @@ import {
   verifyRoll,
   confirmShipment,
   cancelShipment,
-} from '../operations.js';
+} from '../services/dispatch.service.js';
 
 export const dispatchRouter = Router();
 
@@ -32,7 +32,7 @@ dispatchRouter.get('/', async (req, res) => {
           roll: {
             select: {
               id: true, code: true, length: true, quality: true,
-              production: { select: { item: { select: { fabric: true, color: true } } } },
+              production: { select: { fabric: true, color: true } },
             },
           },
         },
@@ -58,7 +58,7 @@ dispatchRouter.get('/', async (req, res) => {
           ...s,
           rolls: s.rolls.map(({ roll: { production, ...roll }, ...row }) => ({
             ...row,
-            roll: { ...roll, fabric: production.item.fabric, color: production.item.color },
+            roll: { ...roll, fabric: production.fabric, color: production.color },
           })),
           dispatcher: events.find((e) => e.action === 'shipment.created')?.actorName ?? null,
           events: events.map(({ entityId: _entityId, ...e }) => e),

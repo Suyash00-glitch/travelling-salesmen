@@ -1,7 +1,6 @@
-import { StatusDonut, BreakdownBars, groupCounts } from '../../components/shared/FactoryInsights';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, UserRound, Wrench, Plus, Radio, Factory } from 'lucide-react';
+import { ArrowUpRight, UserRound, Wrench, Plus, Radio, Factory, Activity, PauseCircle, TriangleAlert } from 'lucide-react';
 import { PreviewButton } from '../../components/shared/PreviewButton';
 import { MachineIcon, MachinePreview } from '../../components/shared/MachinePreview';
 import type { MachineSummary } from '@loomos/shared';
@@ -9,7 +8,7 @@ import { useData } from '../../hooks/useFactory';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
-import { PageHeader, Loading, ErrorState, Badge, } from '../../components/shared/common';
+import { PageHeader, Loading, ErrorState, Badge, Kpi, } from '../../components/shared/common';
 import { number, date } from '../../lib/utils';
 export function MachinesPage() {
     const query = useData<MachineSummary[]>('/machines');
@@ -41,23 +40,13 @@ export function MachinesPage() {
         </Button>
       </PageHeader>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Machine status"
-          description="All machines · current reported condition"
-          unit="machines"
-          items={groupCounts(machines.map((m) => m.status))}
-        />
-        <BreakdownBars
-          title="Today’s top output"
-          description="Five highest reported machine outputs"
-          unit="m"
-          items={[...machines]
-            .sort((a, b) => Number(b.todayOutput) - Number(a.todayOutput))
-            .slice(0, 5)
-            .map((m) => ({ name: `${m.code} · ${m.name}`, value: Number(m.todayOutput) }))}
-        />
+      <div className="kpi-grid">
+        <Kpi label="Total machines" value={machines.length} icon={<Factory size={19}/>} meta={['SPINNING', 'WEAVING', 'DYEING'].map((t) => `${machines.filter((m) => m.type === t).length} ${t.toLowerCase()}`).join(' · ')}/>
+        <Kpi label="Running now" value={machines.filter((m) => m.status === 'RUNNING').length} unit={`of ${machines.length}`} icon={<Activity size={19}/>} meta={`${number(machines.reduce((s, m) => s + Number(m.todayOutput), 0))} m produced today`} accent/>
+        <Kpi label="Idle" value={machines.filter((m) => m.status === 'IDLE').length} icon={<PauseCircle size={19}/>} meta="Free for the next job"/>
+        <Kpi label="Breakdown / maintenance" value={machines.filter((m) => ['BREAKDOWN', 'MAINTENANCE', 'OFFLINE'].includes(m.status)).length} icon={<TriangleAlert size={19}/>} meta={machines.filter((m) => ['BREAKDOWN', 'MAINTENANCE', 'OFFLINE'].includes(m.status)).map((m) => m.code).join(', ') || 'All machines available'}/>
       </div>
+
       <div className="machine-filters">
         {[
             ['ALL', 'All machines'],
@@ -138,7 +127,7 @@ export function MachinesPage() {
                         ? 'Production paused'
                         : 'Ready for the next thread')}
                 </strong>
-                <p>{job?.production?.item.fabric ?? machine.location}</p>
+                <p>{job?.production?.fabric ?? machine.location}</p>
               </div>
 
               <div className="machine-stats">

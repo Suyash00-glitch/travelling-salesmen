@@ -1,4 +1,3 @@
-import { StatusDonut, BreakdownBars, groupCounts } from '../../components/shared/FactoryInsights';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ArrowUpRight, ShoppingBag, CheckCircle2, Workflow, Truck, } from 'lucide-react';
@@ -140,27 +139,6 @@ export function OrdersPage() {
         </div>
       </div>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Order status"
-          description="All loaded orders, grouped by current status"
-          unit="orders"
-          items={groupCounts(all.map((o) => o.status))}
-        />
-        <BreakdownBars
-          title="Orders needing attention"
-          description="Remaining quantity on the next five open orders due"
-          unit="m"
-          items={[...all]
-            .filter((o) => !['COMPLETED', 'CANCELLED'].includes(o.status))
-            .sort((a, b) => a.deadline.localeCompare(b.deadline))
-            .slice(0, 5)
-            .map((o) => ({
-              name: o.number,
-              value: Math.max(0, Number(o.quantity) - Number(o.dispatched)),
-            }))}
-        />
-      </div>
       <Panel>
         <div className="table-toolbar">
           <div className="tabs">

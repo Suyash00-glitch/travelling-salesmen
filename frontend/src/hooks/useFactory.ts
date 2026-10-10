@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Lookups, Notice } from '@loomos/shared';
+import type { AppNotification, Lookups, Notice } from '@loomos/shared';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 
@@ -71,4 +71,35 @@ export function useInboxToasts(notices: Notice[] | undefined) {
     }
     seen.current = new Set(notices.map((n) => n.id));
   }, [notices]);
+}
+
+// Stored notifications for the signed-in user. Simple polling every 30 seconds:
+// no sockets to run, and it keeps working behind any proxy.
+export function useNotificationFeed() {
+  const client = useQueryClient();
+  const feed = useQuery({
+    queryKey: ['/notifications/feed'],
+    queryFn: () => api<{ items: AppNotification[]; unread: number }>('/notifications/feed'),
+    refetchInterval: 30000,
+  });
+
+  const markRead = useMutation({
+    mutationFn: (id?: string) => api(id ? `/notifications/${id}/read` : '/notifications/read-all', {}),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['/notifications/feed'] }),
+  });
+
+  // Toast each notification the first time it shows up while the app is open.
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const items = feed.data?.items;
+    if (!items) return;
+    if (seen.current) {
+      for (const n of items) {
+        if (!n.read && !seen.current.has(n.id)) toast.info(n.title, { description: n.message });
+      }
+    }
+    seen.current = new Set(items.map((n) => n.id));
+  }, [feed.data]);
+
+  return { feed, markRead };
 }

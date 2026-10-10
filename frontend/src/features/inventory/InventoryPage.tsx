@@ -24,7 +24,6 @@ import {
   ExportButton,
 } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import { StatusDonut, BreakdownBars } from '../../components/shared/FactoryInsights';
 import { number, money, date, exportCsv } from '../../lib/utils';
 
 export function InventoryPage() {
@@ -208,14 +207,6 @@ export function InventoryPage() {
 
   const totalAvailable = all.reduce((s, l) => s + Number(l.available), 0);
   const totalReserved = all.reduce((s, l) => s + Number(l.reserved), 0);
-  const topLots = [...all]
-    .sort((a, b) => Number(b.available) - Number(a.available))
-    .slice(0, 5)
-    .map((l) => ({
-      name: `${l.code} · ${l.material}`,
-      value: Number(l.available),
-    }));
-
   return (
     <>
       <PageHeader
@@ -260,23 +251,6 @@ export function InventoryPage() {
         />
       </div>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Stock allocation"
-          description="On-hand yarn split by availability"
-          unit="kg"
-          items={[
-            { name: 'Available', value: totalAvailable },
-            { name: 'Reserved', value: totalReserved },
-          ]}
-        />
-        <BreakdownBars
-          title="Available yarn by lot"
-          description="Five largest available lots"
-          unit="kg"
-          items={topLots}
-        />
-      </div>
 
       <Panel>
         <div className="table-toolbar">

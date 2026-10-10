@@ -12,7 +12,7 @@ import {
   acceptOrder,
   rejectOrder,
   materialPlan,
-} from '../operations.js';
+} from '../services/order.service.js';
 
 // Accepting, planning and editing orders is for the office team, not buyers or the floor.
 const ensureCanManage = (actor: Actor) =>
@@ -38,8 +38,10 @@ ordersRouter.get('/', authorize('orders'), async (req, res) => {
 ordersRouter.get('/:id', authorize('orders'), async (req, res) => {
   const order = (await orderSummaries(req.actor)).find((o) => o.id === id(req));
   ensure(order, 'Order not found.', 404);
+  // Order events plus everything that happened to its production batches.
+  const batches = await db.productionOrder.findMany({ where: { orderId: order.id }, select: { id: true } });
   const timeline = await db.auditLog.findMany({
-    where: { entityId: order.id },
+    where: { entityId: { in: [order.id, ...batches.map((b) => b.id)] } },
     orderBy: { createdAt: 'asc' },
     select: { action: true, detail: true, createdAt: true },
   });

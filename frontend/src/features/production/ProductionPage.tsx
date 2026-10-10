@@ -1,4 +1,3 @@
-import { StatusDonut, BreakdownBars, groupCounts } from '../../components/shared/FactoryInsights';
 import { useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -15,8 +14,12 @@ import {
   Layers,
   ArrowRight,
   ShieldCheck,
+  AlertTriangle,
+  RotateCcw,
+  ArrowLeftRight,
 } from 'lucide-react';
-import { jobStatusLabels, stageForRole, type JobSummary, type PageResponse } from '@loomos/shared';
+import { hasPermission, jobStatusLabels, stageForRole, type BatchRef, type JobSummary, type PageResponse } from '@loomos/shared';
+import { issueForm, reassignForm, reworkForm, standaloneBatchForm } from './productionForms';
 import { useData, useLookups, useAction } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
 import { api } from '../../services/api';
@@ -29,25 +32,15 @@ import {
   Badge,
   Progress,
   SearchBox,
+  Kpi,
 } from '../../components/shared/common';
 import { number, label } from '../../lib/utils';
 import { toast } from 'sonner';
 
 interface Job extends Omit<JobSummary, 'production'> {
-  production: {
-    number: string;
-    item: {
-      fabric: string;
-      color: string;
-      recipeId: string;
-      order: {
-        id: string;
-        number: string;
-        buyer: {
-          name: string;
-        };
-      };
-    };
+  production: BatchRef & {
+    status: string;
+    priority: string;
     reservations: {
       lotId: string;
       quantity: string;
@@ -83,6 +76,7 @@ export function ProductionPage() {
   const [search, setSearch] = useState('');
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [view, setView] = useState<'Pipeline' | 'Board' | 'List'>('Pipeline');
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Drag and drop state
   const [draggingJobId, setDraggingJobId] = useState<string | null>(null);
@@ -95,13 +89,27 @@ export function ProductionPage() {
   const allJobs = query.data?.data ?? [];
 
   // Filter jobs by stage and search term
+  const completedCount = allJobs.filter((j) => j.status === 'COMPLETED').length;
+  // Finished jobs are hidden by default so the board shows only work that needs attention.
   const filteredJobs = allJobs
+    .filter((j) => showCompleted || view === 'Board' || j.status !== 'COMPLETED')
     .filter((j) => (stageFilter === 'ALL' ? true : j.stage === stageFilter))
     .filter((j) =>
-      `${j.production.number} ${j.production.item.fabric} ${j.production.item.order.buyer.name} ${j.stage}`
+      `${j.production.number} ${j.production.fabric} ${j.production.order?.buyer.name ?? 'stock'} ${j.production.order?.number ?? ''} ${j.stage}`
         .toLowerCase()
         .includes(search.toLowerCase())
     );
+
+  const canReport = hasPermission(user, 'production', 'update');
+  const canManage = hasPermission(user, 'production', 'manage');
+
+  // Rework can go back to this stage or any earlier stage the batch has already run.
+  const reachedStages = (job: Job) => {
+    const started = ['IN_PROGRESS', 'BLOCKED', 'PAUSED'].includes(job.status);
+    return job.production.jobs
+      .filter((j) => j.sequence < job.sequence || (started && j.sequence === job.sequence))
+      .map((j) => j.stage);
+  };
 
   // Stage that receives this job when it is finished (undefined = quality check)
   const nextStageOf = (job: Job) =>
@@ -178,7 +186,7 @@ export function ProductionPage() {
   function start(job: Job) {
     setSpec({
       title: `Start ${label(job.stage).toLowerCase()}`,
-      description: `${job.production.number} · ${job.production.item.fabric}`,
+      description: `${job.production.number} · ${job.production.fabric}`,
       path: `/production/jobs/${job.id}/start`,
       fields: [
         {
@@ -208,7 +216,7 @@ export function ProductionPage() {
 
   function output(job: Job) {
     const last = job.sequence === Math.max(...job.production.jobs.map((j) => j.sequence));
-    const recipe = lookup.data?.recipes.find((r) => r.id === job.production.item.recipeId);
+    const recipe = lookup.data?.recipes.find((r) => r.id === job.production.recipeId);
     setSpec({
       title: 'Record production output',
       description: `${job.production.number} · ${label(job.stage)}. Report work and material consumed.`,
@@ -338,17 +346,21 @@ export function ProductionPage() {
           <div>
             <strong style={{ fontSize: '0.8125rem' }}>{job.production.number}</strong>
             <span style={{ fontSize: '0.75rem', color: 'var(--muted)', marginLeft: '6px' }}>
-              {job.production.item.order.number}
+              {job.production.order?.number ?? label(job.production.purpose)}
             </span>
           </div>
           <Badge value={job.status}>{jobStatusLabels[job.status]}</Badge>
         </div>
+        <div className="batch-flags">
+          {job.production.status === 'REWORK' && <span className="flag rework">Rework run</span>}
+          {job.production.priority !== 'NORMAL' && <span className="flag urgent">{label(job.production.priority)}</span>}
+        </div>
 
         <h3 style={{ margin: '8px 0 4px', fontSize: '0.9375rem', fontWeight: 650 }}>
-          {job.production.item.fabric}
+          {job.production.fabric}
         </h3>
         <p style={{ margin: '0 0 10px', fontSize: '0.8125rem', color: 'var(--muted)' }}>
-          {job.production.item.order.buyer.name} <span>·</span> {job.production.item.color}
+          {job.production.order?.buyer.name ?? 'Finished stock'} <span>·</span> {job.production.color}
         </p>
 
         <Progress value={percent} />
@@ -399,7 +411,7 @@ export function ProductionPage() {
               size="sm"
               disabled={isAdv}
               onClick={() => handleQuickAdvance(job)}
-              style={{ background: '#059669', color: '#fff', fontWeight: 600 }}
+              style={{ background: '#c8f135', color: '#1a2400', fontWeight: 700 }}
               title="Records any remaining output and notifies the next team"
             >
               {nextStageOf(job) ? <ArrowRight size={13} /> : <ShieldCheck size={13} />}
@@ -430,6 +442,27 @@ export function ProductionPage() {
             </>
           )}
 
+          {/* Something went wrong: report it, send the batch back, or move it */}
+          {canReport && ['IN_PROGRESS', 'BLOCKED', 'PAUSED', 'READY'].includes(job.status) && (
+            <>
+              <Button size="sm" variant="outline" title="Report a problem" onClick={() => setSpec(issueForm(job.production, job.id))}>
+                <AlertTriangle size={13} />
+                Problem
+              </Button>
+              {reachedStages(job).length > 0 && job.production.status !== 'REWORK' && (
+                <Button size="sm" variant="outline" title="Send back to an earlier stage for rework" onClick={() => setSpec(reworkForm(job.production, reachedStages(job), lookup.data, undefined, job.status === 'IN_PROGRESS' ? job.stage : undefined))}>
+                  <RotateCcw size={13} />
+                  Rework
+                </Button>
+              )}
+            </>
+          )}
+          {canManage && ['BLOCKED', 'PAUSED', 'READY', 'IN_PROGRESS'].includes(job.status) && (
+            <Button size="icon" variant="outline" title="Move to another machine or worker" onClick={() => setSpec(reassignForm(job, job.production.number, lookup.data))}>
+              <ArrowLeftRight size={13} />
+            </Button>
+          )}
+
           {/* If Completed */}
           {job.status === 'COMPLETED' && (
             <span className="green-text text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -446,17 +479,19 @@ export function ProductionPage() {
     <>
       <PageHeader
         eyebrow="MANUFACTURING WORKSPACE"
-        title="Production floor & stage pipeline"
-        description="Effortlessly move jobs across Spinning, Weaving, and Dyeing with 1-click buttons or drag & drop."
+        title="Production floor"
+        description="Accept, finish and hand over jobs between Spinning, Weaving and Dyeing."
       >
-        <Button variant="outline" onClick={() => navigate('/machines')}>
-          <Factory size={16} />
-          Machine floor
-        </Button>
         {!isOperator && (
-          <Button onClick={() => navigate('/orders')}>
+          <Button variant="outline" onClick={() => navigate('/batches')}>
+            <ClipboardList size={16} />
+            Batches & rework
+          </Button>
+        )}
+        {canManage && (
+          <Button onClick={() => setSpec(standaloneBatchForm(lookup.data))}>
             <Plus size={16} />
-            Plan from order
+            New batch
           </Button>
         )}
       </PageHeader>
@@ -495,25 +530,12 @@ export function ProductionPage() {
         </div>
       )}
 
-      {/* Factory Insights Summary */}
-      <div className="insights-grid">
-        <StatusDonut
-          title="Job status"
-          description="Current status distribution of jobs"
-          unit="jobs"
-          items={groupCounts(filteredJobs.map((j) => j.status))}
-        />
-        <BreakdownBars
-          title="Throughput by process"
-          description="Recorded output across textile stages"
-          unit="m"
-          items={['SPINNING', 'WEAVING', 'DYEING'].map((stage) => ({
-            name: label(stage),
-            value: filteredJobs
-              .filter((j) => j.stage === stage)
-              .reduce((sum, j) => sum + Number(j.output), 0),
-          }))}
-        />
+
+      <div className="kpi-grid">
+        <Kpi label="Ready to accept" value={allJobs.filter((j) => j.status === 'READY').length} unit="jobs" icon={<Play size={19} />} meta="Handed over and waiting for a team" accent />
+        <Kpi label="In progress" value={allJobs.filter((j) => j.status === 'IN_PROGRESS').length} unit="jobs" icon={<Factory size={19} />} meta={`${number(allJobs.filter((j) => j.status === 'IN_PROGRESS').reduce((s, j) => s + Number(j.output), 0))} m recorded so far`} />
+        <Kpi label="Stopped" value={allJobs.filter((j) => ['BLOCKED', 'PAUSED'].includes(j.status)).length} unit="jobs" icon={<Pause size={19} />} meta="Blocked or paused · restart from the card" />
+        <Kpi label="Completed" value={completedCount} unit="jobs" icon={<Check size={19} />} meta={`${allJobs.filter((j) => j.status === 'PLANNED').length} more planned`} />
       </div>
 
       {/* Production Toolbar */}
@@ -526,9 +548,10 @@ export function ProductionPage() {
           ))}
         </div>
         <SearchBox value={search} onChange={setSearch} placeholder="Search order, fabric, or buyer…" />
-        <span className="muted" style={{ fontSize: '0.8125rem' }}>
-          {filteredJobs.length} work items · Drag or click to update
-        </span>
+        <label className="muted" style={{ fontSize: '0.8125rem', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+          Show completed ({completedCount})
+        </label>
       </div>
 
       {/* 1. STAGE PIPELINE VIEW: SPINNING -> WEAVING -> DYEING */}

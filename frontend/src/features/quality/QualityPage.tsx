@@ -1,10 +1,11 @@
-import { StatusDonut, BreakdownBars, groupCounts } from '../../components/shared/FactoryInsights';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, ScanLine, CheckCircle2, TriangleAlert, Layers, ArrowUpRight, } from 'lucide-react';
+import { ShieldCheck, ScanLine, CheckCircle2, TriangleAlert, Layers, ArrowUpRight, RotateCcw, } from 'lucide-react';
 import { can, type RollSummary, type PageResponse } from '@loomos/shared';
 import { useAuth } from '../auth/Auth';
-import { useData } from '../../hooks/useFactory';
+import { useData, useLookups } from '../../hooks/useFactory';
+import { FilterBar, useFilters } from '../../components/shared/FilterBar';
+import { reworkForm } from '../production/productionForms';
 import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { PageHeader, Panel, Loading, ErrorState, Badge, SearchBox, Kpi, } from '../../components/shared/common';
@@ -16,7 +17,9 @@ export { RollPassportPage } from './RollPassportPage';
 export function QualityPage({ finished = false }: {
     finished?: boolean;
 }) {
-    const query = useData<PageResponse<RollSummary>>('/rolls?pageSize=100');
+    const filters = useFilters(['buyerId', 'source']);
+    const lookups = useLookups();
+    const query = useData<PageResponse<RollSummary>>(`/rolls?pageSize=100${filters.query ? `&${filters.query}` : ''}`);
     const { user } = useAuth();
     const [filter, setFilter] = useState('ALL');
     const [search, setSearch] = useState('');
@@ -30,7 +33,7 @@ export function QualityPage({ finished = false }: {
     const all = query.data!.data;
     const rows = all.filter((r) => (!finished || r.quality === 'PASSED') &&
         (filter === 'ALL' || r.quality === filter) &&
-        `${r.code} ${r.production.item.fabric} ${r.production.item.order.number}`
+        `${r.code} ${r.production.fabric} ${r.production.number} ${r.production.order?.number ?? ''} ${r.production.order?.buyer.name ?? ''}`
             .toLowerCase()
             .includes(search.toLowerCase()));
     return (<>
@@ -50,42 +53,6 @@ export function QualityPage({ finished = false }: {
         <Kpi label="Available to ship" value={all.filter((r) => r.quality === 'PASSED' && !r.activeShipmentId).length} unit="rolls" icon={<Layers size={19}/>} meta="Unreserved finished inventory"/>
       </div>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title={finished ? 'Finished roll allocation' : 'Inspection results'}
-          description={
-            finished
-              ? 'Quality-approved rolls by shipment assignment'
-              : 'Current quality state of all loaded rolls'
-          }
-          unit="rolls"
-          items={
-            finished
-              ? [
-                  {
-                    name: 'Available',
-                    value: all.filter((r) => r.quality === 'PASSED' && !r.activeShipmentId).length,
-                  },
-                  {
-                    name: 'Reserved / dispatched',
-                    value: all.filter((r) => r.quality === 'PASSED' && r.activeShipmentId).length,
-                  },
-                ]
-              : groupCounts(all.map((r) => r.quality))
-          }
-        />
-        <BreakdownBars
-          title="Fabric by quality state"
-          description="Total length of rolls at each quality stage"
-          unit="m"
-          items={['PASSED', 'PENDING', 'REWORK', 'REJECTED'].map((state) => ({
-            name: label(state),
-            value: all
-              .filter((r) => r.quality === state)
-              .reduce((sum, r) => sum + Number(r.length), 0),
-          }))}
-        />
-      </div>
       <Panel>
         <div className="table-toolbar">
           <div className="tabs">
@@ -95,8 +62,12 @@ export function QualityPage({ finished = false }: {
                 {t === 'ALL' ? 'All rolls' : label(t)}
               </button>))}
           </div>
-          <SearchBox value={search} onChange={setSearch} placeholder="Find a roll or order…"/>
+          <SearchBox value={search} onChange={setSearch} placeholder="Find a roll, batch or order…"/>
         </div>
+        <FilterBar filters={[
+            { name: 'buyerId', label: 'Customer', options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })) },
+            { name: 'source', label: 'Made for', options: [{ value: 'ORDER', label: 'Customer orders' }, { value: 'STOCK', label: 'Finished stock' }] },
+        ]} values={filters.values} onChange={filters.setValue} onClear={filters.clear} active={filters.active}/>
 
         <DataTable data={rows} columns={[
             {
@@ -108,17 +79,20 @@ export function QualityPage({ finished = false }: {
                   </span>
                   <div className="cell-stack">
                     <strong>{row.original.code}</strong>
-                    <span>{row.original.production.item.fabric}</span>
+                    <span>{row.original.production.fabric}</span>
                   </div>
                 </button>),
             },
-            { accessorKey: 'production.item.color', header: 'Colour' },
+            { accessorKey: 'production.color', header: 'Colour' },
             {
-                accessorKey: 'production.item.order.number',
+                id: 'order',
                 header: 'Buyer order',
-                cell: ({ row }) => (<div className="cell-stack">
-                  <strong>{row.original.production.item.order.number}</strong>
-                  <span>{row.original.production.item.order.buyer.name}</span>
+                cell: ({ row }) => row.original.production.order ? (<div className="cell-stack">
+                  <strong>{row.original.production.order.number}</strong>
+                  <span>{row.original.production.order.buyer.name}</span>
+                </div>) : (<div className="cell-stack">
+                  <strong>Finished stock</strong>
+                  <span>{row.original.production.number}</span>
                 </div>),
             },
             {
@@ -186,8 +160,13 @@ export function QualityPage({ finished = false }: {
                     })}>
                     <ShieldCheck size={14}/>
                     Inspect
-                  </Button>) : can(user.role, 'quality') && row.original.quality === 'REWORK' ? (<Button variant="outline" size="sm" onClick={() => setSpec({
-                        title: 'Complete rework',
+                  </Button>) : row.original.quality === 'REWORK' && row.original.location.startsWith('Rework · back to') ? (<span className="muted">{row.original.location.replace('Rework · back', 'Back')}</span>) : can(user.role, 'quality') && row.original.quality === 'REWORK' ? (<div style={{ display: 'flex', gap: 6 }}>
+                  <Button variant="outline" size="sm" title="Send the roll back to spinning, weaving or dyeing" onClick={() => setSpec(reworkForm(row.original.production, lookups.data?.recipes.find((r) => r.id === row.original.production.recipeId)?.route ?? ['SPINNING', 'WEAVING', 'DYEING'], lookups.data, { ids: [row.original.id], codes: [row.original.code] }))}>
+                    <RotateCcw size={14}/>
+                    Send back to stage
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setSpec({
+                        title: 'Repair at rework bay',
                         description: 'Return this roll to the inspection queue. Previous inspections stay in its passport.',
                         path: `/rolls/${row.original.id}/rework`,
                         fields: [
@@ -207,8 +186,9 @@ export function QualityPage({ finished = false }: {
                         ],
                         submit: 'Send for reinspection',
                     })}>
-                    Complete rework
-                  </Button>) : (<button className="icon-button" onClick={() => navigate(`/rolls/${row.original.id}`)} aria-label="View roll passport">
+                    Repair at bay
+                  </Button>
+                  </div>) : (<button className="icon-button" onClick={() => navigate(`/rolls/${row.original.id}`)} aria-label="View roll passport">
                     <ArrowUpRight size={17}/>
                   </button>),
             },

@@ -20,12 +20,17 @@ export function NewShipment({ onClose }: { onClose: () => void }) {
   const [driverPhone, setDriverPhone] = useState('');
   const client = useQueryClient();
 
+  // Rolls made for this order, plus finished stock of a fabric the order asked for.
+  const order = orders.data?.data.find((o) => o.id === orderId);
+  const orderRecipes = order?.items.map((i) => i.recipeId) ?? [];
   const available =
     rolls.data?.data.filter(
       (r) =>
         r.quality === 'PASSED' &&
         !r.activeShipmentId &&
-        r.production.item.order.id === orderId,
+        (r.production.order
+          ? r.production.order.id === orderId
+          : orderRecipes.includes(r.production.recipeId)),
     ) ?? [];
 
   const mutation = useMutation({
@@ -109,7 +114,8 @@ export function NewShipment({ onClose }: { onClose: () => void }) {
               <div>
                 <strong>{r.code}</strong>
                 <small>
-                  {r.production.item.fabric} · {r.production.item.color}
+                  {r.production.fabric} · {r.production.color}
+                  {!r.production.order && ' · from stock'}
                 </small>
               </div>
               <b>{number(r.length)} m</b>

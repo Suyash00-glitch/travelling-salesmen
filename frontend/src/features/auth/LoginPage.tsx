@@ -15,9 +15,10 @@ import { Spinner } from '../../components/shared/common';
 
 interface LoginPageProps {
   onSuccess: () => void;
+  onSignup?: () => void;
 }
 
-export function LoginPage({ onSuccess }: LoginPageProps) {
+export function LoginPage({ onSuccess, onSignup }: LoginPageProps) {
   const [email, setEmail] = useState('owner@loomos.demo');
   const [password, setPassword] = useState('LoomDemo2026!');
   const [show, setShow] = useState(false);
@@ -157,7 +158,7 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   color: 'var(--muted)',
                   fontWeight: 600,
                   textTransform: 'uppercase',
@@ -195,6 +196,13 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
               )}
             </Button>
           </form>
+
+          {onSignup && (
+            <div className="auth-switch">
+              New to the factory?
+              <button type="button" onClick={onSignup}>Request an account</button>
+            </div>
+          )}
 
           <div className="login-demo">
             <span className="demo-dot" />

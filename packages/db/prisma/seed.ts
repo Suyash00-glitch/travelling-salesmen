@@ -9,22 +9,14 @@ import {
   standardRoles,
   type Role,
 } from '@loomos/shared';
-import {
-  createOrder,
-  planOrder,
-  receiveYarn,
-  reserveYarn,
-  startJob,
-  recordOutput,
-  transitionJob,
-  recordAttendance,
-  inspectRoll,
-  createShipment,
-  verifyRoll,
-  confirmShipment,
-  buyerPayment,
-  machineAction,
-} from '../../../backend/src/operations.js';
+import { createOrder, planOrder } from '../../../backend/src/services/order.service.js';
+import { receiveYarn, reserveYarn } from '../../../backend/src/services/inventory.service.js';
+import { startJob, recordOutput, transitionJob } from '../../../backend/src/services/production.service.js';
+import { recordAttendance } from '../../../backend/src/services/workforce.service.js';
+import { inspectRoll } from '../../../backend/src/services/quality.service.js';
+import { createShipment, verifyRoll, confirmShipment } from '../../../backend/src/services/dispatch.service.js';
+import { buyerPayment } from '../../../backend/src/services/finance.service.js';
+import { machineAction } from '../../../backend/src/services/machine.service.js';
 import { D } from '../../../backend/src/lib/domain.js';
 
 export async function seedRbacAndFacilities(tx: Tx) {

@@ -31,9 +31,12 @@ export function Badge({
     'READY',
     'PRESENT',
     'RECEIVED',
+    'RESOLVED',
+    'APPROVED',
+    'FINISHED',
   ].includes(value)
     ? 'green'
-    : ['BREAKDOWN', 'REJECTED', 'URGENT', 'CANCELLED'].includes(value)
+    : ['BREAKDOWN', 'REJECTED', 'URGENT', 'CANCELLED', 'FAILED'].includes(value)
     ? 'red'
     : [
         'PENDING',
@@ -45,6 +48,7 @@ export function Badge({
         'PARTIAL',
         'ATTENTION',
         'MAINTENANCE',
+        'OPEN',
       ].includes(value)
     ? 'amber'
     : [
@@ -53,6 +57,10 @@ export function Badge({
         'WEAVING',
         'DYEING',
         'DISPATCHED',
+        'ONGOING',
+        'SPINNING',
+        'QUALITY',
+        'DISPATCH',
       ].includes(value)
     ? 'blue'
     : 'gray';

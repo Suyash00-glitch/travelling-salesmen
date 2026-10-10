@@ -3,7 +3,7 @@ import type { Request, Router } from 'express';
 import { z } from 'zod';
 import type { Tx } from '@loomos/db';
 import { hasPermission, type Area } from '@loomos/shared';
-import { authorize } from '../middleware/auth.js';
+import { authorizeAny } from '../middleware/auth.js';
 import { DomainError, mutate, type Actor } from './domain.js';
 import { publish } from './events.js';
 
@@ -25,17 +25,19 @@ export function page<T>(req: Request, data: T[]): { data: T[]; total: number; pa
   };
 }
 
+// `area` can be a list when more than one team may do the action (e.g. rework: production or quality).
 export function write<S extends z.ZodTypeAny>(
   router: Router,
   path: string,
-  area: Area,
+  area: Area | Area[],
   schema: S,
   fn: (tx: Tx, input: z.infer<S>, actor: Actor, req: Request) => Promise<unknown>,
 ): void {
-  router.post(path, authorize(area), async (req, res) => {
+  const areas = Array.isArray(area) ? area : [area];
+  router.post(path, authorizeAny(areas), async (req, res) => {
     // Seeing an area is not enough to change it: view-only roles are refused here.
-    const canWrite = ['create', 'update', 'approve'].some((action) =>
-      hasPermission(req.actor, area, action),
+    const canWrite = areas.some((a) =>
+      ['create', 'update', 'approve'].some((action) => hasPermission(req.actor, a, action)),
     );
     if (!canWrite) throw new DomainError(403, 'Your role can view this area but not change it.');
 
@@ -51,7 +53,7 @@ export function write<S extends z.ZodTypeAny>(
       (tx) => fn(tx, input, req.actor, req),
     );
 
-    publish(area);
+    areas.forEach((a) => publish(a));
     res.json(result);
   });
 }

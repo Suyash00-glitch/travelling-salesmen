@@ -28,7 +28,6 @@ import { DataTable } from '../../components/tables/DataTable';
 import { ScanDialog } from '../quality/QualityPage';
 import { number, date, money } from '../../lib/utils';
 import { TruckWorkspace } from './TruckWorkspace';
-import { StatusDonut, BreakdownBars, groupCounts } from '../../components/shared/FactoryInsights';
 import { NewShipment } from './NewShipment';
 
 export interface ShipmentView {
@@ -169,24 +168,6 @@ export function DispatchPage({ buyer = false }: { buyer?: boolean }) {
         </div>
       </div>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Shipments by status"
-          description="Every truck, from loading to delivered"
-          unit="trucks"
-          items={groupCounts(shipments.map((s) => s.status))}
-        />
-        <BreakdownBars
-          title="Fabric shipped by buyer"
-          description="Metres on trucks for each buyer"
-          items={[...new Set(shipments.map((s) => s.order.buyer.name))].map((name) => ({
-            name,
-            value: shipments
-              .filter((s) => s.order.buyer.name === name && s.status !== 'CANCELLED')
-              .reduce((sum, s) => sum + Number(s.quantity), 0),
-          }))}
-        />
-      </div>
 
       <TruckWorkspace shipments={shipments} actions={shipmentActions} onScan={buyer ? undefined : setScan} />
 

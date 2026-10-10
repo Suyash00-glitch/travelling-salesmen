@@ -280,7 +280,7 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
                 <tr>
                   <th>Resource</th>
                   {permissionActions.map((action) => (
-                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '10px' }}>
+                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>
                       {action}
                     </th>
                   ))}
@@ -432,7 +432,7 @@ function EditPermissionsModal({
                 <tr>
                   <th>Resource</th>
                   {permissionActions.map((action) => (
-                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '10px' }}>
+                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>
                       {action}
                     </th>
                   ))}

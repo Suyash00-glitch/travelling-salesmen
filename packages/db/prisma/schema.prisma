@@ -22,6 +22,15 @@ model User {
   department Department? @relation(fields:[departmentId],references:[id])
   userRoles UserRole[]
   sessions Session[]
+  notifications Notification[]
+  // Self-registered users start as PENDING and cannot sign in until an admin approves them.
+  approvalStatus String @default("APPROVED")
+  requestedRole String?
+  phone String @default("")
+  // Buyer signups: the company the account is for, turned into a buyer record on approval.
+  company String @default("")
+  city String @default("")
+  note String @default("")
   createdAt DateTime @default(now())
 }
 model Session {
@@ -51,6 +60,7 @@ model Recipe {
   route String[]
   overheadPerMetre Decimal @db.Decimal(14,2)
   items SalesOrderItem[]
+  productions ProductionOrder[]
 }
 model SalesOrder {
   id String @id @default(cuid())
@@ -65,6 +75,7 @@ model SalesOrder {
   items SalesOrderItem[]
   shipments Shipment[]
   costs CostAllocation[]
+  productions ProductionOrder[]
   @@index([status,deadline])
 }
 model SalesOrderItem {
@@ -175,14 +186,35 @@ model StockReservation {
 model ProductionOrder {
   id String @id @default(cuid())
   number String @unique
-  itemId String @unique
-  item SalesOrderItem @relation(fields:[itemId],references:[id])
+  // Set for customer-order production; empty for standalone (stock / internal) batches.
+  itemId String? @unique
+  item SalesOrderItem? @relation(fields:[itemId],references:[id])
+  orderId String?
+  order SalesOrder? @relation(fields:[orderId],references:[id])
+  recipeId String
+  recipe Recipe @relation(fields:[recipeId],references:[id])
+  fabric String
+  color String
+  unitPrice Decimal @default(0) @db.Decimal(14,2)
+  // ORDER, STOCK, INTERNAL, REPLACEMENT or URGENT
+  purpose String @default("ORDER")
+  priority String @default("NORMAL")
+  notes String @default("")
+  dueDate DateTime?
+  createdBy String @default("")
+  replacesId String?
+  replaces ProductionOrder? @relation("Replacement",fields:[replacesId],references:[id])
+  replacements ProductionOrder[] @relation("Replacement")
   status String @default("PLANNED")
   target Decimal @db.Decimal(14,3)
   createdAt DateTime @default(now())
   jobs JobCard[]
   reservations StockReservation[]
   rolls FabricRoll[]
+  reworks ReworkJob[]
+  issues ProductionIssue[]
+  costs CostAllocation[]
+  @@index([status,createdAt])
 }
 model JobCard {
   id String @id @default(cuid())
@@ -223,6 +255,7 @@ model Machine {
   department Department? @relation(fields:[departmentId],references:[id])
   jobs JobCard[]
   downtime DowntimeEvent[]
+  reworks ReworkJob[]
 }
 model ProductionEntry {
   id String @id @default(cuid())
@@ -283,13 +316,64 @@ model QualityInspection {
 }
 model ReworkJob {
   id String @id @default(cuid())
-  rollId String
-  roll FabricRoll @relation(fields:[rollId],references:[id])
+  rollId String?
+  roll FabricRoll? @relation(fields:[rollId],references:[id])
+  productionId String?
+  production ProductionOrder? @relation(fields:[productionId],references:[id])
+  // e.g. DYEING_DEFECT, WEAVING_DEFECT, QUALITY_FAILURE, MACHINE_FAULT, WRONG_QUANTITY, DAMAGED_MATERIAL
+  defectType String @default("QUALITY_FAILURE")
   reason String
+  fromStage String @default("QUALITY")
+  // Stage the batch is sent back to. Empty means it is repaired at the rework bay.
+  returnStage String?
+  quantity Decimal @default(0) @db.Decimal(14,3)
+  rollCodes String[] @default([])
+  machineId String?
+  machine Machine? @relation(fields:[machineId],references:[id])
+  workerId String?
+  worker Worker? @relation(fields:[workerId],references:[id])
+  // OPEN, IN_PROGRESS, COMPLETED or CANCELLED
   status String @default("OPEN")
+  outcome String @default("")
+  raisedBy String @default("")
+  resolvedBy String @default("")
   cost Decimal @default(0) @db.Decimal(14,2)
   createdAt DateTime @default(now())
+  startedAt DateTime?
   completedAt DateTime?
+  @@index([status,createdAt])
+}
+
+model ProductionIssue {
+  id String @id @default(cuid())
+  productionId String
+  production ProductionOrder @relation(fields:[productionId],references:[id])
+  jobId String?
+  stage String?
+  // MACHINE_BREAKDOWN, WORKER_UNAVAILABLE, MATERIAL_SHORTAGE, WRONG_QUANTITY, QUALITY_FAILURE, DELAY, INTERRUPTION, OTHER
+  type String
+  description String
+  // OPEN or RESOLVED
+  status String @default("OPEN")
+  resolution String @default("")
+  reportedBy String
+  resolvedBy String @default("")
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  @@index([status,createdAt])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  title String
+  message String
+  category String
+  link String @default("")
+  read Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([userId,read,createdAt])
 }
 model Shipment {
   id String @id @default(cuid())
@@ -359,6 +443,7 @@ model Worker {
   attendance Attendance[]
   assignments WorkerAssignment[]
   wages WageEntry[]
+  reworks ReworkJob[]
 }
 model WorkerAssignment {
   id String @id @default(cuid())
@@ -393,8 +478,10 @@ model WageEntry {
 }
 model CostAllocation {
   id String @id @default(cuid())
-  orderId String
-  order SalesOrder @relation(fields:[orderId],references:[id])
+  orderId String?
+  order SalesOrder? @relation(fields:[orderId],references:[id])
+  productionId String?
+  production ProductionOrder? @relation(fields:[productionId],references:[id])
   category String
   amount Decimal @db.Decimal(14,2)
   source String

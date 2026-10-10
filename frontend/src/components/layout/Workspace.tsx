@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Package, Truck, Factory, Workflow, ShieldCheck, Layers, Users, Wallet, ChartNoAxesCombined, Settings, Search, Bell, ChevronsUpDown, LogOut, Menu, Command, CircleHelp, ChevronRight, type LucideIcon, } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Truck, Factory, Workflow, ShieldCheck, Layers, Users, Wallet, ChartNoAxesCombined, Settings, Search, Bell, ChevronsUpDown, LogOut, Menu, Command, CircleHelp, ChevronRight, ClipboardList, type LucideIcon, } from 'lucide-react';
 import { can, type Area, type Notice, type PageResponse, type OrderSummary } from '@loomos/shared';
 import { useAuth } from '../../features/auth/Auth';
-import { useData, useLiveUpdates, useInboxToasts } from '../../hooks/useFactory';
+import { useData, useLiveUpdates, useInboxToasts, useNotificationFeed } from '../../hooks/useFactory';
 import { label } from '../../lib/utils';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { NotificationsModal } from './NotificationsModal';
@@ -31,6 +31,7 @@ const sections: NavSection[] = [
         name: 'FACTORY OPERATIONS',
         items: [
             ['Production', '/production', Workflow, 'production'],
+            ['Batches & rework', '/batches', ClipboardList, 'production'],
             ['Machine floor', '/machines', Factory, 'machines'],
             ['Quality control', '/quality', ShieldCheck, 'quality'],
             ['Finished rolls', '/rolls', Layers, 'rolls'],
@@ -58,6 +59,8 @@ export function Workspace() {
     const userMenuRef = useRef<HTMLDivElement>(null);
     const notices = useData<Notice[]>('/notifications', user.role !== 'BUYER');
     useInboxToasts(notices.data);
+    const { feed, markRead } = useNotificationFeed();
+    const unread = feed.data?.unread ?? 0;
     const orders = useData<PageResponse<OrderSummary>>('/orders?pageSize=100', can(user.role, 'orders'));
 
     useEffect(() => {
@@ -190,10 +193,10 @@ export function Workspace() {
               <i />
               {live ? 'Live updates' : 'Updates offline'}
             </span>
-            {user.role !== 'BUYER' && (<button className="notification-button" onClick={() => setNotifications(true)} aria-label="View notifications">
+            <button className="notification-button" onClick={() => setNotifications(true)} aria-label={`View notifications${unread ? ` (${unread} unread)` : ''}`}>
                 <Bell size={19}/>
-                {!!notices.data?.length && <i />}
-              </button>)}
+                {unread > 0 ? <span className="notification-count">{unread > 99 ? '99+' : unread}</span> : !!notices.data?.length && <i />}
+              </button>
             <div className="topbar-user" ref={userMenuRef} style={{ position: 'relative' }}>
               <button
                 className="topbar-user-trigger"
@@ -244,11 +247,11 @@ export function Workspace() {
                     <div style={{ fontWeight: 600, fontSize: '13px', color: '#1b2d22' }}>
                       {user.name}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#68776f', marginTop: '2px' }}>
+                    <div style={{ fontSize: '12px', color: '#3b4049', marginTop: '2px' }}>
                       {user.email}
                     </div>
                     <div style={{ marginTop: '6px' }}>
-                      <span className="badge badge-green" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                      <span className="badge badge-green" style={{ fontSize: '12px', padding: '2px 6px' }}>
                         {label(user.role)}
                       </span>
                     </div>
@@ -302,7 +305,7 @@ export function Workspace() {
 
       <GlobalSearchModal open={search} onClose={() => setSearch(false)} userRole={user.role} allNavItems={all} ordersData={orders.data}/>
 
-      <NotificationsModal open={notifications} onClose={() => setNotifications(false)} notices={notices.data}/>
+      <NotificationsModal open={notifications} onClose={() => setNotifications(false)} notices={user.role === 'BUYER' ? undefined : notices.data} feed={feed.data?.items} unread={unread} onRead={(id) => markRead.mutate(id)}/>
 
       <HelpModal open={help} onClose={() => setHelp(false)}/>
     </div>);

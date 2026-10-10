@@ -8,10 +8,13 @@ import {
   updateRoleSchema,
   factorySchema,
   departmentSchema,
+  approveUserSchema,
+  rejectUserSchema,
 } from '@loomos/shared';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { ensure, audit } from '../lib/domain.js';
 import { id, page } from '../lib/route-helpers.js';
+import { approveUser, rejectUser } from '../services/user.service.js';
 
 export const rbacRouter = Router();
 
@@ -44,6 +47,12 @@ rbacRouter.get('/users', async (req, res) => {
     role: u.role,
     roles: Array.from(new Set([u.role, ...u.userRoles.map((ur) => ur.role.code)])),
     active: u.active,
+    approvalStatus: u.approvalStatus,
+    requestedRole: u.requestedRole,
+    phone: u.phone,
+    company: u.company,
+    city: u.city,
+    note: u.note,
     buyerId: u.buyerId,
     buyerName: u.buyer?.name,
     workerId: u.workerId,
@@ -167,11 +176,24 @@ rbacRouter.patch('/users/:id', async (req, res) => {
   res.json({ ok: true, id: updated.id });
 });
 
+// Approve a signup and give it a role
+rbacRouter.post('/users/:id/approve', async (req, res) => {
+  const input = approveUserSchema.parse(req.body);
+  res.json(await db.$transaction((tx) => approveUser(tx, id(req), input, req.actor)));
+});
+
+// Decline a signup
+rbacRouter.post('/users/:id/reject', async (req, res) => {
+  const input = rejectUserSchema.parse(req.body);
+  res.json(await db.$transaction((tx) => rejectUser(tx, id(req), input.reason, req.actor)));
+});
+
 // Toggle account activation / suspension
 rbacRouter.post('/users/:id/toggle-status', async (req, res) => {
   const userId = id(req);
   const user = await db.user.findUnique({ where: { id: userId } });
   ensure(user, 'User not found.', 404);
+  ensure(user.approvalStatus === 'APPROVED', 'Approve or decline this signup request instead.', 400);
   ensure(user.id !== req.actor.id, 'You cannot suspend your own account.', 400);
 
   const newActive = !user.active;

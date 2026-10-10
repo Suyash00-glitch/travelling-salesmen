@@ -3,20 +3,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary:#23674f; --font-sans:"Inter Variable",sans-serif;
+  --color-primary:#2f3135; --font-sans:"Inter Variable",sans-serif;
 }
 
 :root {
-  color: #29372e;
+  color: #202225;
   font-synthesis: none;
-  --green: #22674f;
-  --green-dark: #174e3e;
-  --muted: #838b84;
-  --border: #e6e9e1;
+  --green: #2e3034;
+  --green-dark: #222427;
+  --muted: #5e6064;
+  --border: #e3e4e7;
   --surface: #fff;
-  --canvas: #f8f9f6;
+  --canvas: #f7f7f8;
   --sidebar: 236px;
-  background: #f8f9f6;
+  background: #f7f7f8;
   font-family: Inter Variable, Inter, Segoe UI, sans-serif;
   font-size: 13px;
 }
@@ -48,7 +48,7 @@ button:disabled {
 
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline-offset: 3px;
-  outline: 3px solid #92bca5;
+  outline: 3px solid #a2a5ac;
 }
 
 a {
@@ -95,7 +95,7 @@ svg {
 }
 
 input, select, textarea {
-  color: #354137;
+  color: #282a2d;
 }
 
 input::placeholder, textarea::placeholder {
@@ -111,7 +111,7 @@ input[type="number"] {
 }
 
 .green-text {
-  color: #2b815f !important;
+  color: #3a3d42 !important;
 }
 
 .red-text {
@@ -166,24 +166,24 @@ input[type="number"] {
   background: var(--green);
   border-color: var(--green);
   color: #fff;
-  box-shadow: 0 1px 2px #113b2520;
+  box-shadow: 0 1px 2px #1a1b1d20;
 }
 
 .button-primary:hover {
-  background: #19543f;
-  box-shadow: 0 3px 8px #113b2520;
+  background: #25262a;
+  box-shadow: 0 3px 8px #1a1b1d20;
 }
 
 .button-outline {
-  color: #566150;
+  color: #3c3e44;
   background: #fff;
-  border-color: #dfe4da;
-  box-shadow: 0 1px 2px #27321b05;
+  border-color: #dddee1;
+  box-shadow: 0 1px 2px #1a1b1d05;
 }
 
 .button-outline:hover {
-  background: #f4f7f0;
-  border-color: #bdc8b8;
+  background: #f3f3f4;
+  border-color: #bcbfc4;
 }
 
 .button-ghost {
@@ -221,8 +221,8 @@ input[type="number"] {
 }
 
 .icon-button:hover {
-  color: #245c45;
-  background: #edf1e9;
+  color: #2b2d31;
+  background: #ecedee;
 }
 
 .text-link {
@@ -256,8 +256,8 @@ input[type="number"] {
 }
 
 .badge-green {
-  color: #488564;
-  background: #eaf4ec;
+  color: #45484e;
+  background: #eeeff0;
 }
 
 .badge-amber {
@@ -277,11 +277,11 @@ input[type="number"] {
 
 .badge-gray {
   color: var(--muted);
-  background: #f0f1ed;
+  background: #eeeff0;
 }
 
 .tiny-dot {
-  background: #9aa491;
+  background: #9498a1;
   border-radius: 50%;
   flex-shrink: 0;
   width: 5px;
@@ -290,7 +290,7 @@ input[type="number"] {
 }
 
 .green {
-  background: #5a9f77 !important;
+  background: #54585f !important;
 }
 
 .amber {
@@ -302,7 +302,7 @@ input[type="number"] {
 }
 
 .gray {
-  background: #adb5a7 !important;
+  background: #a9acb3 !important;
 }
 
 .blue {
@@ -312,7 +312,7 @@ input[type="number"] {
 .avatar {
   color: var(--muted);
   letter-spacing: -.4px;
-  background: #e9eee0;
+  background: #e6e7e8;
   border-radius: 50%;
   flex-shrink: 0;
   justify-content: center;
@@ -332,13 +332,13 @@ input[type="number"] {
 }
 
 .avatar-user {
-  color: #6d7a51;
-  background: #e2e8d7;
+  color: #45484d;
+  background: #dedfe1;
 }
 
 .avatar-top {
   border: 2px solid #fff;
-  outline: 1px solid #e5e8de;
+  outline: 1px solid #e1e2e5;
   width: 29px;
   height: 29px;
   font-size: 12px;
@@ -353,7 +353,7 @@ input[type="number"] {
   width: var(--sidebar);
   border-right: 1px solid var(--border);
   z-index: 40;
-  background: #fbfcf9;
+  background: #fafafb;
   flex-direction: column;
   padding: 29px 17px 0;
   display: flex;
@@ -363,7 +363,7 @@ input[type="number"] {
 
 .brand {
   letter-spacing: -1.4px;
-  color: #284432;
+  color: #252629;
   align-items: center;
   gap: 0;
   font-family: Manrope Variable, sans-serif;
@@ -383,7 +383,7 @@ input[type="number"] {
 
 .brand-mark {
   background: var(--green);
-  color: #f3f6e4;
+  color: #ecedee;
   border-radius: 9px;
   justify-content: center;
   align-items: center;
@@ -398,7 +398,7 @@ input[type="number"] {
 .mill-switch {
   text-align: left;
   background: #fff;
-  border: 1px solid #e3e7dd;
+  border: 1px solid #e0e1e4;
   border-radius: 8px;
   align-items: center;
   gap: 9px;
@@ -410,7 +410,7 @@ input[type="number"] {
 
 .mill-avatar {
   color: var(--muted);
-  background: #f0f2e9;
+  background: #ecedef;
   border-radius: 6px;
   flex-shrink: 0;
   justify-content: center;
@@ -478,14 +478,14 @@ input[type="number"] {
 }
 
 .nav-section > a.active {
-  color: #365f42;
-  background: #e9efe2;
+  color: #323539;
+  background: #e7e8ea;
   font-weight: 650;
 }
 
 .nav-section > a.active:before {
   content: "";
-  background: #648554;
+  background: #494d53;
   border-radius: 2px;
   width: 3px;
   height: 16px;
@@ -494,8 +494,8 @@ input[type="number"] {
 }
 
 .nav-section > a:hover {
-  color: #395a40;
-  background: #f0f3eb;
+  color: #323438;
+  background: #eeeff0;
 }
 
 .nav-dot {
@@ -507,7 +507,7 @@ input[type="number"] {
 }
 
 .nav-dot.online {
-  background: #7ea468;
+  background: #5b5f66;
 }
 
 .sidebar-bottom {
@@ -516,8 +516,8 @@ input[type="number"] {
 }
 
 .workspace-note {
-  background: #f1f3e9;
-  border: 1px solid #e9ecdf;
+  background: #edeeef;
+  border: 1px solid #e4e5e7;
   border-radius: 8px;
   margin-bottom: 15px;
   padding: 14px;
@@ -548,7 +548,7 @@ input[type="number"] {
 }
 
 .workspace-note button {
-  color: #648053;
+  color: #474a51;
   background: none;
   border: 0;
   align-items: center;
@@ -576,7 +576,7 @@ input[type="number"] {
 }
 
 .sidebar-user {
-  border-top: 1px solid #e3e8db;
+  border-top: 1px solid #e0e1e3;
   align-items: center;
   gap: 9px;
   margin-top: 13px;
@@ -628,7 +628,7 @@ input[type="number"] {
 }
 
 .breadcrumb strong {
-  color: #53604b;
+  color: #3a3c41;
   font-weight: 500;
 }
 
@@ -657,8 +657,8 @@ input[type="number"] {
 }
 
 .global-search kbd {
-  background: #fafbf8;
-  border: 1px solid #e4e8de;
+  background: #f9f9fa;
+  border: 1px solid #e1e2e5;
   border-radius: 4px;
   align-items: center;
   gap: 2px;
@@ -670,7 +670,7 @@ input[type="number"] {
 }
 
 .topbar-divider {
-  background: #e9ebe3;
+  background: #e6e7e8;
   width: 1px;
   height: 22px;
 }
@@ -691,8 +691,8 @@ input[type="number"] {
 }
 
 .live-indicator.is-live i {
-  background: #6aab79;
-  box-shadow: 0 0 0 3px #eaf3e8;
+  background: #5e626a;
+  box-shadow: 0 0 0 3px #ecedef;
 }
 
 .notification-button {
@@ -748,9 +748,9 @@ input[type="number"] {
 }
 
 .date-button {
-  color: #68745d;
+  color: #474a50;
   background: #fff;
-  border: 1px solid #dfe4d8;
+  border: 1px solid #dcdde0;
   border-radius: 6px;
   align-items: center;
   gap: 7px;
@@ -761,7 +761,7 @@ input[type="number"] {
 }
 
 .date-button input {
-  color: #68745d;
+  color: #474a50;
   background: none;
   border: 0;
   outline: none;
@@ -770,8 +770,8 @@ input[type="number"] {
 }
 
 .overview-ribbon {
-  background: #eef2e7;
-  border: 1px solid #e5eadb;
+  background: #ebecee;
+  border: 1px solid #e1e2e4;
   border-radius: 7px;
   align-items: center;
   gap: 18px;
@@ -792,7 +792,7 @@ input[type="number"] {
 }
 
 .ribbon-dot {
-  background: #8dac77;
+  background: #62676f;
   border-radius: 50%;
   width: 5px;
   height: 5px;
@@ -805,7 +805,7 @@ input[type="number"] {
 }
 
 .overview-ribbon strong {
-  color: #5d7150;
+  color: #41444a;
   font-weight: 600;
 }
 
@@ -848,7 +848,7 @@ input[type="number"] {
 
 .kpi-icon {
   color: var(--muted);
-  background: #f4f6ef;
+  background: #f2f2f3;
   border-radius: 7px;
   justify-content: center;
   align-items: center;
@@ -864,7 +864,7 @@ input[type="number"] {
 .kpi-value {
   letter-spacing: -1px;
   font-variant-numeric: tabular-nums;
-  color: #2d3e2b;
+  color: #242528;
   z-index: 1;
   white-space: nowrap;
   margin: 10px 0 13px;
@@ -905,7 +905,7 @@ input[type="number"] {
 
 .metric-tag {
   color: var(--muted);
-  background: #eef4e8;
+  background: #edeeef;
   border-radius: 4px;
   align-items: center;
   gap: 3px;
@@ -916,17 +916,17 @@ input[type="number"] {
 
 .metric-tag.neutral {
   color: var(--muted);
-  background: #f2f3ec;
+  background: #efeff0;
 }
 
 .kpi-accent {
   color: #fff;
-  background: #205d49;
-  border-color: #205d49;
+  background: #2a2c30;
+  border-color: #2a2c30;
 }
 
 .kpi-accent .kpi-top {
-  color: #c1d2c3;
+  color: #c6c8cd;
 }
 
 .kpi-accent .kpi-icon {
@@ -935,7 +935,7 @@ input[type="number"] {
 }
 
 .kpi-accent .kpi-value {
-  color: #fafbf2;
+  color: #f6f6f7;
 }
 
 .kpi-accent .kpi-value > small, .kpi-accent .kpi-meta {
@@ -943,7 +943,7 @@ input[type="number"] {
 }
 
 .kpi-accent .metric-tag {
-  color: #c6ddb6;
+  color: #c6c8cd;
   background: #ffffff0e;
 }
 
@@ -976,7 +976,7 @@ input[type="number"] {
 
 .panel-header h2 {
   letter-spacing: -.25px;
-  color: #405037;
+  color: #2e3034;
   font-size: 13px;
 }
 
@@ -996,8 +996,8 @@ input[type="number"] {
 
 .chart-period {
   color: var(--muted);
-  background: #f8f9f5;
-  border: 1px solid #edf0e6;
+  background: #f7f7f7;
+  border: 1px solid #eaebec;
   border-radius: 5px;
   padding: 6px 9px;
   font-size: 12px;
@@ -1039,14 +1039,14 @@ input[type="number"] {
 }
 
 .chart-legend i {
-  background: #4a9876;
+  background: #4c5056;
   border-radius: 50%;
   width: 6px;
   height: 6px;
 }
 
 .chart-legend span:last-child i {
-  background: #c5cfb9;
+  background: #c0c3c8;
 }
 
 .production-chart {
@@ -1056,7 +1056,7 @@ input[type="number"] {
 
 .chart-bottom {
   color: var(--muted);
-  border-top: 1px solid #f0f2eb;
+  border-top: 1px solid #eeeeef;
   justify-content: space-between;
   align-items: center;
   padding: 11px 19px;
@@ -1196,9 +1196,9 @@ input[type="number"] {
 
 .data-table th {
   color: var(--muted);
-  background: #fafbf8;
-  border-top: 1px solid #ecf0e5;
-  border-bottom: 1px solid #ecf0e5;
+  background: #f9f9fa;
+  border-top: 1px solid #e9eaec;
+  border-bottom: 1px solid #e9eaec;
   padding: 10px 17px;
   font-size: 12px;
   font-weight: 450;
@@ -1226,8 +1226,8 @@ input[type="number"] {
 }
 
 .data-table td {
-  color: #69745f;
-  border-bottom: 1px solid #eff2e9;
+  color: #474a51;
+  border-bottom: 1px solid #ecedef;
   padding: 14px 17px;
   font-size: 12px;
 }
@@ -1237,13 +1237,13 @@ input[type="number"] {
 }
 
 .data-table strong {
-  color: #5d6d52;
+  color: #414349;
   font-size: 12px;
   font-weight: 550;
 }
 
 .data-table tr:hover td {
-  background: #fcfdf9;
+  background: #fbfbfb;
 }
 
 .clickable-row {
@@ -1262,7 +1262,7 @@ input[type="number"] {
 }
 
 .cell-stack .order-number {
-  color: #637957;
+  color: #46494f;
   font-size: 12px;
 }
 
@@ -1282,7 +1282,7 @@ input[type="number"] {
 }
 
 .progress-track {
-  background: #edf1e6;
+  background: #eaebed;
   border-radius: 5px;
   flex: 1;
   min-width: 50px;
@@ -1291,7 +1291,7 @@ input[type="number"] {
 }
 
 .progress-track > div {
-  background: #91ab75;
+  background: #61666e;
   border-radius: 5px;
   height: 100%;
 }
@@ -1304,7 +1304,7 @@ input[type="number"] {
 
 .table-footer {
   color: var(--muted);
-  border-top: 1px solid #edf0e6;
+  border-top: 1px solid #eaebec;
   justify-content: space-between;
   align-items: center;
   padding: 13px 18px;
@@ -1366,8 +1366,8 @@ input[type="number"] {
 
 .mini-machine.running {
   color: var(--muted);
-  background: #eef4e8;
-  border-color: #e4ecd9;
+  background: #edeeef;
+  border-color: #e1e2e4;
 }
 
 .mini-machine.breakdown {
@@ -1378,13 +1378,13 @@ input[type="number"] {
 
 .mini-machine.maintenance, .mini-machine.offline {
   color: var(--muted);
-  background: #f4f5f1;
-  border-color: #e9ede2;
+  background: #f2f3f4;
+  border-color: #e6e7e9;
 }
 
 .floor-legend {
   color: var(--muted);
-  border-top: 1px solid #f0f2ea;
+  border-top: 1px solid #edeeef;
   justify-content: space-between;
   padding: 14px 19px;
   font-size: 12px;
@@ -1411,7 +1411,7 @@ input[type="number"] {
 }
 
 .activity-strip > div {
-  border-right: 1px solid #edf0e5;
+  border-right: 1px solid #e9eaec;
   align-items: flex-start;
   gap: 10px;
   padding-right: 14px;
@@ -1424,8 +1424,8 @@ input[type="number"] {
 
 .activity-icon {
   color: var(--muted);
-  background: #f8faf4;
-  border: 1px solid #edf0e3;
+  background: #f7f7f7;
+  border: 1px solid #e8e9eb;
   border-radius: 50%;
   flex-shrink: 0;
   justify-content: center;
@@ -1505,13 +1505,13 @@ input[type="number"] {
 }
 
 .tabs button.active {
-  color: #5f7d48;
-  background: #edf2e6;
+  color: #43464b;
+  background: #ebeced;
   font-weight: 550;
 }
 
 .tabs button > span {
-  background: #dfe8d5;
+  background: #dddee0;
   border-radius: 4px;
   margin-left: 6px;
   padding: 1px 5px;
@@ -1521,7 +1521,7 @@ input[type="number"] {
 .search-box {
   color: var(--muted);
   background: #fff;
-  border: 1px solid #e4e9dc;
+  border: 1px solid #e1e2e4;
   border-radius: 6px;
   align-items: center;
   gap: 8px;
@@ -1554,7 +1554,7 @@ input[type="number"] {
 
 .summary-strip > div {
   color: var(--muted);
-  border-right: 1px solid #e8ede1;
+  border-right: 1px solid #e6e7e8;
   align-items: center;
   gap: 14px;
   padding: 0 25px;
@@ -1575,7 +1575,7 @@ input[type="number"] {
 
 .summary-strip strong {
   letter-spacing: -.6px;
-  color: #4a6240;
+  color: #37393e;
   font-family: Manrope Variable, sans-serif;
   font-size: 22px;
   font-weight: 600;
@@ -1584,7 +1584,7 @@ input[type="number"] {
 .dialog-overlay {
   backdrop-filter: blur(4px);
   z-index: 100;
-  background: #15271959;
+  background: #14151759;
   animation: .16s fade-in;
   position: fixed;
   inset: 0;
@@ -1593,7 +1593,7 @@ input[type="number"] {
 .dialog-content {
   z-index: 101;
   background: #fff;
-  border: 1px solid #dde6d6;
+  border: 1px solid #dcdde0;
   border-radius: 14px;
   width: min(540px, 100vw - 32px);
   max-height: 90vh;
@@ -1604,7 +1604,7 @@ input[type="number"] {
   left: 50%;
   overflow-y: auto;
   transform: translate(-50%, -50%);
-  box-shadow: 0 25px 100px #10271933;
+  box-shadow: 0 25px 100px #13131533;
 }
 
 .dialog-wide {
@@ -1633,7 +1633,7 @@ input[type="number"] {
 }
 
 .dialog-footer {
-  border-top: 1px solid #edf1e6;
+  border-top: 1px solid #eaebed;
   justify-content: flex-end;
   gap: 9px;
   margin-top: 23px;
@@ -1655,7 +1655,7 @@ input[type="number"] {
 }
 
 .field > span {
-  color: #687b59;
+  color: #484b51;
   font-size: 12px;
   font-weight: 550;
 }
@@ -1667,7 +1667,7 @@ input[type="number"] {
 
 .field input, .field select, .field textarea {
   background: #fff;
-  border: 1px solid #dde5d4;
+  border: 1px solid #dadcdf;
   border-radius: 6px;
   outline: none;
   width: 100%;
@@ -1677,8 +1677,8 @@ input[type="number"] {
 }
 
 .field input:focus, .field select:focus, .field textarea:focus {
-  border-color: #79976b;
-  box-shadow: 0 0 0 3px #edf3e5;
+  border-color: #575b62;
+  box-shadow: 0 0 0 3px #ebeced;
 }
 
 .field small {
@@ -1708,8 +1708,8 @@ input[type="number"] {
 
 .info-banner {
   color: var(--muted);
-  background: #eef4e8;
-  border: 1px solid #e2ead7;
+  background: #edeeef;
+  border: 1px solid #dfe0e2;
   border-radius: 8px;
   align-items: flex-start;
   gap: 11px;
@@ -1740,8 +1740,8 @@ input[type="number"] {
 }
 
 .line-item {
-  background: #fafbf8;
-  border: 1px solid #e6ecdc;
+  background: #f9f9fa;
+  border: 1px solid #e2e3e6;
   border-radius: 8px;
   margin-bottom: 12px;
   padding: 15px;
@@ -1768,7 +1768,7 @@ input[type="number"] {
 
 .empty-icon {
   color: var(--muted);
-  background: #f2f5ec;
+  background: #f0f0f1;
   border-radius: 14px;
   justify-content: center;
   align-items: center;
@@ -1816,7 +1816,7 @@ input[type="number"] {
 }
 
 .detail-list > div {
-  border-bottom: 1px solid #f0f3e9;
+  border-bottom: 1px solid #edeeef;
   justify-content: space-between;
   gap: 20px;
   padding: 12px 0;
@@ -1846,8 +1846,8 @@ input[type="number"] {
 }
 
 .route-item-heading {
-  color: #647b52;
-  border-top: 1px solid #edf1e5;
+  color: #45484e;
+  border-top: 1px solid #eaebec;
   justify-content: space-between;
   align-items: center;
   padding: 17px 0;
@@ -1876,7 +1876,7 @@ input[type="number"] {
 .stage-node:before {
   content: "";
   z-index: 0;
-  background: #e5ecd9;
+  background: #e1e2e4;
   height: 1px;
   position: absolute;
   top: 19px;
@@ -1895,8 +1895,8 @@ input[type="number"] {
 .stage-circle {
   color: var(--muted);
   z-index: 1;
-  background: #f8faf4;
-  border: 1px solid #e0e8d4;
+  background: #f7f7f7;
+  border: 1px solid #dcdde0;
   border-radius: 50%;
   justify-content: center;
   align-items: center;
@@ -1908,15 +1908,15 @@ input[type="number"] {
 
 .stage-circle.done {
   color: var(--muted);
-  background: #e9f2df;
-  border-color: #dce8cb;
+  background: #e7e8ea;
+  border-color: #d7d9dc;
 }
 
 .stage-circle.current {
-  color: #f4f8ec;
-  background: #377153;
-  border-color: #377153;
-  box-shadow: 0 0 0 5px #f0f5e9;
+  color: #f1f2f3;
+  background: #393b40;
+  border-color: #393b40;
+  box-shadow: 0 0 0 5px #eeeff0;
 }
 
 .stage-node strong {
@@ -1931,7 +1931,7 @@ input[type="number"] {
 }
 
 .material-plan-row {
-  border-top: 1px solid #edf1e6;
+  border-top: 1px solid #eaebed;
   align-items: center;
   gap: 20px;
   padding: 19px 20px;
@@ -1958,7 +1958,7 @@ input[type="number"] {
 
 .material-icon {
   color: var(--muted);
-  background: #f3f6eb;
+  background: #f0f0f1;
   border-radius: 8px;
   justify-content: center;
   align-items: center;
@@ -1984,7 +1984,7 @@ input[type="number"] {
 
 .timeline > div:not(:last-child):before {
   content: "";
-  background: #e6eedb;
+  background: #e3e4e6;
   width: 1px;
   position: absolute;
   top: 11px;
@@ -1993,7 +1993,7 @@ input[type="number"] {
 }
 
 .timeline-dot {
-  background: #c4d5ae;
+  background: #bec0c5;
   border-radius: 50%;
   flex-shrink: 0;
   width: 9px;
@@ -2016,9 +2016,9 @@ input[type="number"] {
 }
 
 .material-swatch {
-  border: 4px solid #fafbf7;
+  border: 4px solid #f9f9f9;
   border-radius: 50%;
-  outline: 1px solid #e9eddf;
+  outline: 1px solid #e4e6e8;
   width: 34px;
   height: 34px;
   display: block;
@@ -2041,7 +2041,7 @@ input[type="number"] {
 
 .ledger > div {
   color: var(--muted);
-  border-bottom: 1px solid #edf1e5;
+  border-bottom: 1px solid #eaebec;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
@@ -2081,7 +2081,7 @@ input[type="number"] {
 
 .supplier-card {
   background: #fff;
-  border: 1px solid #e3e9d9;
+  border: 1px solid #dfe0e3;
   border-radius: 9px;
   flex-wrap: wrap;
   align-items: center;
@@ -2092,7 +2092,7 @@ input[type="number"] {
 
 .supplier-icon {
   color: var(--muted);
-  background: #f2f5eb;
+  background: #eff0f1;
   border-radius: 9px;
   justify-content: center;
   align-items: center;
@@ -2102,7 +2102,7 @@ input[type="number"] {
 }
 
 .supplier-card h3 {
-  color: #607d4b;
+  color: #44474c;
   font-size: 12px;
 }
 
@@ -2129,8 +2129,8 @@ input[type="number"] {
 }
 
 .segmented-control {
-  background: #eff3e8;
-  border: 1px solid #e1e8d6;
+  background: #ecedef;
+  border: 1px solid #dddee1;
   border-radius: 7px;
   padding: 3px;
   display: flex;
@@ -2146,9 +2146,9 @@ input[type="number"] {
 }
 
 .segmented-control button.active {
-  color: #587a40;
+  color: #3f4247;
   background: #fff;
-  box-shadow: 0 1px 4px #29411110;
+  box-shadow: 0 1px 4px #1c1d1f10;
 }
 
 .kanban-board {
@@ -2159,8 +2159,8 @@ input[type="number"] {
 }
 
 .kanban-column {
-  background: #f0f3ec;
-  border: 1px solid #e9edde;
+  background: #efeff0;
+  border: 1px solid #e4e5e7;
   border-radius: 9px;
   min-width: 0;
   padding: 12px;
@@ -2182,7 +2182,7 @@ input[type="number"] {
 
 .kanban-heading > span:last-child {
   color: var(--muted);
-  background: #e5ecda;
+  background: #e1e2e5;
   border-radius: 5px;
   justify-content: center;
   align-items: center;
@@ -2200,10 +2200,10 @@ input[type="number"] {
 
 .job-card {
   background: #fff;
-  border: 1px solid #e0e7d5;
+  border: 1px solid #dcdde0;
   border-radius: 7px;
   padding: 15px 13px;
-  box-shadow: 0 2px 3px #263c1503;
+  box-shadow: 0 2px 3px #1b1d1f03;
 }
 
 .job-card-top {
@@ -2225,7 +2225,7 @@ input[type="number"] {
 }
 
 .job-card h3 {
-  color: #587445;
+  color: #3f4147;
   font-size: 12px;
 }
 
@@ -2258,7 +2258,7 @@ input[type="number"] {
 
 .job-meta {
   color: var(--muted);
-  border-top: 1px solid #edf2e5;
+  border-top: 1px solid #eaebed;
   flex-direction: column;
   gap: 8px;
   margin-top: 15px;
@@ -2318,7 +2318,7 @@ input[type="number"] {
 .kanban-empty {
   text-align: center;
   color: var(--muted);
-  border: 1px dashed #dce5cf;
+  border: 1px dashed #d8d9dc;
   border-radius: 6px;
   padding: 30px 10px;
   font-size: 12px;
@@ -2341,8 +2341,8 @@ input[type="number"] {
 
 .reported-pill {
   color: var(--muted);
-  background: #f2f6eb;
-  border: 1px solid #e5ebdc;
+  background: #f0f0f1;
+  border: 1px solid #e2e3e5;
   border-radius: 6px;
   align-items: center;
   gap: 7px;
@@ -2361,7 +2361,7 @@ input[type="number"] {
 .machine-filters > button {
   color: var(--muted);
   background: #fff;
-  border: 1px solid #e5ebdc;
+  border: 1px solid #e2e3e5;
   border-radius: 7px;
   align-items: center;
   gap: 8px;
@@ -2372,13 +2372,13 @@ input[type="number"] {
 
 .machine-filters > button.active {
   color: var(--muted);
-  background: #eaf2df;
-  border-color: #d1e0bd;
+  background: #e7e8ea;
+  border-color: #ccced1;
 }
 
 .machine-filters b {
   color: var(--muted);
-  background: #f1f5e9;
+  background: #eeeff0;
   border-radius: 4px;
   padding: 2px 5px;
   font-size: 12px;
@@ -2386,14 +2386,14 @@ input[type="number"] {
 }
 
 .status-dot {
-  background: #a6b797;
+  background: #a2a5ac;
   border-radius: 50%;
   width: 5px;
   height: 5px;
 }
 
 .status-running {
-  background: #7aaa65;
+  background: #5c6067;
 }
 
 .status-idle {
@@ -2405,7 +2405,7 @@ input[type="number"] {
 }
 
 .status-maintenance {
-  background: #a4b29a;
+  background: #a1a4ab;
 }
 
 .floor-section-heading {
@@ -2443,7 +2443,7 @@ input[type="number"] {
 .machine-card {
   text-align: left;
   background: #fff;
-  border: 1px solid #e3ead8;
+  border: 1px solid #dfe0e3;
   border-radius: 10px;
   flex-direction: column;
   padding: 17px;
@@ -2454,9 +2454,9 @@ input[type="number"] {
 }
 
 .machine-card:hover {
-  border-color: #c8d9b4;
+  border-color: #c3c5ca;
   transform: translateY(-3px);
-  box-shadow: 0 6px 20px #24420d09;
+  box-shadow: 0 6px 20px #1b1c1e09;
 }
 
 .machine-card-top {
@@ -2467,7 +2467,7 @@ input[type="number"] {
 
 .machine-avatar {
   color: var(--muted);
-  background: #f2f7e9;
+  background: #eff0f1;
   border-radius: 9px;
   justify-content: center;
   align-items: center;
@@ -2490,7 +2490,7 @@ input[type="number"] {
 }
 
 .machine-name h3 {
-  color: #5c7a46;
+  color: #414449;
   letter-spacing: -.5px;
   justify-content: space-between;
   align-items: center;
@@ -2511,7 +2511,7 @@ input[type="number"] {
 
 .loom-illustration {
   color: var(--muted);
-  background: radial-gradient(#f4f8ed 0%, #fff 70%);
+  background: radial-gradient(#f2f2f3 0%, #fff 70%);
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -2530,7 +2530,7 @@ input[type="number"] {
 }
 
 .loom-threads {
-  background: repeating-linear-gradient(0deg, #0000 0 4px, #b5c9a555 4px 5px);
+  background: repeating-linear-gradient(0deg, #0000 0 4px, #b3b6bb55 4px 5px);
   gap: 4px;
   width: 93px;
   height: 32px;
@@ -2548,7 +2548,7 @@ input[type="number"] {
 
 .loom-roller {
   opacity: .6;
-  background: #f4f8ec;
+  background: #f1f2f3;
   border: 1px solid;
   border-radius: 5px;
   width: 113px;
@@ -2569,7 +2569,7 @@ input[type="number"] {
 }
 
 .machine-job {
-  border-top: 1px solid #edf2e4;
+  border-top: 1px solid #eaebec;
   min-height: 66px;
   margin-top: 4px;
   padding-top: 12px;
@@ -2578,7 +2578,7 @@ input[type="number"] {
 .machine-job small {
   letter-spacing: 1px;
   color: var(--muted);
-  font-size: 6px;
+  font-size: 12px;
   display: block;
 }
 
@@ -2632,7 +2632,7 @@ input[type="number"] {
 
 .machine-card-footer {
   color: var(--muted);
-  border-top: 1px solid #eef3e6;
+  border-top: 1px solid #ebecee;
   justify-content: space-between;
   align-items: center;
   padding-top: 11px;
@@ -2647,7 +2647,7 @@ input[type="number"] {
 }
 
 .machine-card-footer .tiny-dot {
-  background: #afc89b;
+  background: #adb0b6;
 }
 
 .machine-breakdown {
@@ -2675,12 +2675,12 @@ input[type="number"] {
 
 .machine-maintenance .machine-avatar {
   color: var(--muted);
-  background: #f2f4ed;
+  background: #f0f0f1;
 }
 
 .machine-detail-summary {
   color: var(--muted);
-  background: #f4f8ee;
+  background: #f2f3f4;
   border-radius: 7px;
   justify-content: space-between;
   align-items: center;
@@ -2699,7 +2699,7 @@ input[type="number"] {
 }
 
 .detail-section {
-  border-top: 1px solid #eaf0e0;
+  border-top: 1px solid #e7e8e9;
   margin-top: 21px;
   padding-top: 17px;
 }
@@ -2739,8 +2739,8 @@ input[type="number"] {
 
 .roll-icon {
   color: var(--muted);
-  background: #eef4e5;
-  border: 1px solid #e3ebd8;
+  background: #ebecee;
+  border: 1px solid #e0e1e3;
   border-radius: 7px;
   flex-shrink: 0;
   justify-content: center;
@@ -2752,8 +2752,8 @@ input[type="number"] {
 
 .scanner-frame {
   color: var(--muted);
-  background: #f8fbf4;
-  border: 1px dashed #c8dab2;
+  background: #f7f7f8;
+  border: 1px dashed #c3c5c9;
   border-radius: 9px;
   flex-direction: column;
   justify-content: center;
@@ -2796,7 +2796,7 @@ input[type="number"] {
 
 .passport-fabric {
   color: var(--muted);
-  background: repeating-linear-gradient(45deg, #f1f4e8, #f1f4e8 3px, #e8efdb 3px 4px);
+  background: repeating-linear-gradient(45deg, #edeeef, #edeeef 3px, #e3e4e7 3px 4px);
   border-radius: 8px;
   justify-content: center;
   align-items: center;
@@ -2845,7 +2845,7 @@ input[type="number"] {
 }
 
 .passport-stages > div {
-  border-top: 1px solid #edf3e3;
+  border-top: 1px solid #eaebec;
   align-items: center;
   gap: 15px;
   padding: 16px 0;
@@ -2876,7 +2876,7 @@ input[type="number"] {
 }
 
 .inspection-timeline > div {
-  border-top: 1px solid #edf2e2;
+  border-top: 1px solid #e9eaeb;
   align-items: flex-start;
   gap: 13px;
   padding: 16px 0;
@@ -2885,7 +2885,7 @@ input[type="number"] {
 
 .inspection-icon {
   color: var(--muted);
-  background: #f0f6e7;
+  background: #eeeeef;
   border-radius: 50%;
   justify-content: center;
   align-items: center;
@@ -2935,7 +2935,7 @@ input[type="number"] {
 
 .shipment-icon {
   color: var(--muted);
-  background: #eef5e4;
+  background: #ebecee;
   border-radius: 9px;
   justify-content: center;
   align-items: center;
@@ -2949,7 +2949,7 @@ input[type="number"] {
 }
 
 .shipment-heading h3 {
-  color: #628347;
+  color: #44474d;
   font-size: 13px;
 }
 
@@ -2990,8 +2990,8 @@ input[type="number"] {
 
 .shipment-order {
   color: var(--muted);
-  border-top: 1px solid #e9f0dd;
-  border-bottom: 1px solid #e9f0dd;
+  border-top: 1px solid #e5e6e8;
+  border-bottom: 1px solid #e5e6e8;
   justify-content: space-between;
   align-items: center;
   padding: 13px 0;
@@ -3018,7 +3018,7 @@ input[type="number"] {
 
 .shipment-rolls > div {
   color: var(--muted);
-  border-bottom: 1px solid #f2f6eb;
+  border-bottom: 1px solid #f0f0f1;
   align-items: center;
   gap: 9px;
   padding: 11px 0;
@@ -3027,7 +3027,7 @@ input[type="number"] {
 }
 
 .shipment-rolls > div > span:first-child {
-  background: #f2f6e9;
+  background: #efeff0;
   border-radius: 5px;
   justify-content: center;
   align-items: center;
@@ -3038,7 +3038,7 @@ input[type="number"] {
 
 .shipment-rolls > div > span.roll-verified {
   color: var(--muted);
-  background: #e9f3db;
+  background: #e6e7e8;
 }
 
 .shipment-rolls strong {
@@ -3067,7 +3067,7 @@ input[type="number"] {
 }
 
 .shipment-actions {
-  border-top: 1px solid #edf3e3;
+  border-top: 1px solid #eaebec;
   align-items: center;
   gap: 8px;
   padding-top: 13px;
@@ -3089,7 +3089,7 @@ input[type="number"] {
 }
 
 .roll-selection > label {
-  border: 1px solid #e2ecd5;
+  border: 1px solid #dfe0e2;
   border-radius: 8px;
   align-items: center;
   gap: 12px;
@@ -3099,7 +3099,7 @@ input[type="number"] {
 }
 
 .roll-selection input {
-  accent-color: #2c7552;
+  accent-color: #36393d;
 }
 
 .roll-selection > label > div {
@@ -3122,7 +3122,7 @@ input[type="number"] {
 
 .selection-total {
   color: var(--muted);
-  background: #f0f6e7;
+  background: #eeeeef;
   border-radius: 6px;
   justify-content: space-between;
   margin-top: 15px;
@@ -3190,7 +3190,7 @@ input[type="number"] {
 
 .shift-cards > div {
   background: #fff;
-  border: 1px solid #e3ebd7;
+  border: 1px solid #dfe0e3;
   border-radius: 9px;
   align-items: center;
   gap: 13px;
@@ -3200,7 +3200,7 @@ input[type="number"] {
 
 .shift-icon {
   color: var(--muted);
-  background: #f4f7ea;
+  background: #f0f0f1;
   border-radius: 50%;
   justify-content: center;
   align-items: center;
@@ -3249,7 +3249,7 @@ input[type="number"] {
 
 .finance-summary > div {
   color: var(--muted);
-  border-bottom: 1px solid #edf2e2;
+  border-bottom: 1px solid #e9eaeb;
   justify-content: space-between;
   padding: 12px 0;
   font-size: 12px;
@@ -3281,8 +3281,8 @@ input[type="number"] {
 }
 
 .report-intro, .buyer-welcome {
-  background: #e9efdd;
-  border: 1px solid #e0e8cf;
+  background: #e4e6e8;
+  border: 1px solid #d9dbde;
   border-radius: 10px;
   justify-content: space-between;
   align-items: center;
@@ -3294,7 +3294,7 @@ input[type="number"] {
 }
 
 .report-intro h2, .buyer-welcome h2 {
-  color: #617c40;
+  color: #404248;
   letter-spacing: -.8px;
   font-size: 27px;
   font-weight: 600;
@@ -3324,7 +3324,7 @@ input[type="number"] {
 }
 
 .report-orbit span {
-  border: 1px solid #d2ddbf;
+  border: 1px solid #cbcdd1;
   border-radius: 50%;
   width: 150px;
   height: 150px;
@@ -3337,7 +3337,7 @@ input[type="number"] {
 }
 
 .report-orbit i {
-  background: #b5c88d;
+  background: #a5a9b0;
   border-radius: 50%;
   width: 9px;
   height: 9px;
@@ -3358,8 +3358,8 @@ input[type="number"] {
 }
 
 .buyer-fabric-art > i {
-  background: repeating-linear-gradient(0deg, #a4b680, #a4b680 2px, #95a976 2px 3px);
-  border: 1px solid #92a86d;
+  background: repeating-linear-gradient(0deg, #9599a1, #9599a1 2px, #61656e 2px 3px);
+  border: 1px solid #5e626a;
   border-radius: 7px;
   width: 155px;
   height: 98px;
@@ -3367,21 +3367,21 @@ input[type="number"] {
   top: 28px;
   left: 40px;
   transform: rotate(-14deg);
-  box-shadow: 3px 3px 8px #7c955420;
+  box-shadow: 3px 3px 8px #4f525920;
 }
 
 .buyer-fabric-art > i:nth-child(2) {
-  background: #b6c69b;
+  background: #acafb5;
   transform: translate(7px, 10px) rotate(-9deg);
 }
 
 .buyer-fabric-art > i:nth-child(3) {
-  background: #c9d4b2;
+  background: #bfc2c7;
   transform: translate(14px, 20px) rotate(-4deg);
 }
 
 .buyer-fabric-art > i:nth-child(4) {
-  background: repeating-linear-gradient(45deg, #d8e0c4, #d8e0c4 2px, #cdd7b5 2px 3px);
+  background: repeating-linear-gradient(45deg, #cfd1d5, #cfd1d5 2px, #c3c5c9 2px 3px);
   transform: translate(21px, 30px) rotate(1deg);
 }
 
@@ -3456,7 +3456,7 @@ input[type="number"] {
 
 .settings-summary {
   background: #fff;
-  border: 1px solid #e2e9d7;
+  border: 1px solid #dedfe2;
   border-radius: 9px;
   align-items: center;
   gap: 15px;
@@ -3491,7 +3491,7 @@ input[type="number"] {
 
 .audit-code {
   color: var(--muted);
-  background: #f0f5e7;
+  background: #edeeef;
   border-radius: 4px;
   padding: 4px 6px;
   font-size: 12px;
@@ -3499,7 +3499,7 @@ input[type="number"] {
 
 .command-input {
   color: var(--muted);
-  border-bottom: 1px solid #e5edde;
+  border-bottom: 1px solid #e4e5e7;
   align-items: center;
   gap: 10px;
   padding-bottom: 15px;
@@ -3534,7 +3534,7 @@ input[type="number"] {
 }
 
 .command-results > button:hover {
-  background: #f1f7e9;
+  background: #eff0f1;
 }
 
 .command-results > button svg:last-child {
@@ -3547,7 +3547,7 @@ input[type="number"] {
   color: var(--muted);
   background: none;
   border: 0;
-  border-bottom: 1px solid #eaf0e0;
+  border-bottom: 1px solid #e7e8e9;
   align-items: flex-start;
   gap: 12px;
   width: 100%;
@@ -3612,7 +3612,7 @@ input[type="number"] {
 
 .help-steps > div > span {
   color: var(--muted);
-  background: #eaf2dd;
+  background: #e6e7e9;
   border-radius: 50%;
   justify-content: center;
   align-items: center;
@@ -3629,7 +3629,7 @@ input[type="number"] {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #ecf0e4 25%, #f4f7ee 50%, #ecf0e4 75%) 0 0 / 200% 100%;
+  background: linear-gradient(90deg, #e9eaeb 25%, #f2f2f3 50%, #e9eaeb 75%) 0 0 / 200% 100%;
   border-radius: 9px;
   animation: 1.4s infinite shimmer;
 }
@@ -3670,8 +3670,8 @@ input[type="number"] {
 }
 
 .login-story {
-  color: #f0f4e6;
-  background: #204f3d;
+  color: #ecedee;
+  background: #26272a;
   flex-direction: column;
   padding: 42px 55px;
   display: flex;
@@ -3680,12 +3680,12 @@ input[type="number"] {
 }
 
 .login-story .brand {
-  color: #f3f5e5;
+  color: #ecedee;
   font-size: 31px;
 }
 
 .login-story .brand-mark {
-  color: #d0ddab;
+  color: #c0c3c8;
   background: #ffffff16;
   border: 1px solid #ffffff1a;
 }
@@ -3710,7 +3710,7 @@ input[type="number"] {
 
 .login-story h1 {
   letter-spacing: -2.8px;
-  color: #f3f5e8;
+  color: #eeeeef;
   z-index: 2;
   font-size: 58px;
   font-weight: 450;
@@ -3762,8 +3762,8 @@ input[type="number"] {
 .woven-art > span {
   top: 0;
   left: calc(var(--i, 0)*29px);
-  background: linear-gradient(0deg, #8aa77522, #bad49b55, #83a56910);
-  border: 1px solid #acc39118;
+  background: linear-gradient(0deg, #60646c22, #b3b6bc55, #5b5f6710);
+  border: 1px solid #a5a8af18;
   width: 15px;
   height: 200px;
   position: absolute;
@@ -3794,7 +3794,7 @@ input[type="number"] {
 }
 
 .woven-art > span:nth-child(n+7) {
-  background: linear-gradient(90deg, #aac88f05, #cfdbb744, #aac88f11);
+  background: linear-gradient(90deg, #a6aab105, #c6c8cc44, #a6aab111);
   width: 320px;
   height: 14px;
   left: 0;
@@ -3855,7 +3855,7 @@ input[type="number"] {
 
 .login-form h2 {
   letter-spacing: -1px;
-  color: #425a34;
+  color: #303236;
   margin-top: 13px;
   font-size: 29px;
   font-weight: 600;
@@ -3914,8 +3914,8 @@ input[type="number"] {
 }
 
 .login-demo {
-  background: #fafcf6;
-  border: 1px solid #e6eddc;
+  background: #f9f9f9;
+  border: 1px solid #e3e4e6;
   border-radius: 7px;
   align-items: flex-start;
   gap: 9px;
@@ -3925,7 +3925,7 @@ input[type="number"] {
 }
 
 .demo-dot {
-  background: #a5b88b;
+  background: #9ca0a7;
   border-radius: 50%;
   flex-shrink: 0;
   width: 5px;
@@ -4372,7 +4372,7 @@ input[type="number"] {
 
   .sidebar-scrim {
     z-index: 39;
-    background: #172b1b55;
+    background: #16171955;
     border: 0;
     display: block;
     position: fixed;

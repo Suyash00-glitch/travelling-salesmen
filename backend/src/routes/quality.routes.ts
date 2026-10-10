@@ -1,55 +1,33 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '@loomos/db';
+import { db, type Prisma } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { ensure } from '../lib/domain.js';
 import { page, id, write } from '../lib/route-helpers.js';
-import { rollPassport, inspectRoll, reworkRoll } from '../operations.js';
+import { rollPassport, inspectRoll, reworkRoll } from '../services/quality.service.js';
+import { batchRef } from '../services/production.service.js';
 
 export const qualityRouter = Router();
 
-// List fabric rolls
+// List fabric rolls, with optional filters: customer, order, quality result, stock or order rolls.
 qualityRouter.get('/', authorize('rolls'), async (req, res) => {
+  const where: Prisma.FabricRollWhereInput = {};
+  const production: Prisma.ProductionOrderWhereInput = {};
+  if (req.query.buyerId) production.order = { buyerId: String(req.query.buyerId) };
+  if (req.query.orderId) production.orderId = String(req.query.orderId);
+  if (req.query.source === 'STOCK') production.orderId = null;
+  if (req.query.source === 'ORDER') production.orderId = { not: null };
+  if (Object.keys(production).length) where.production = production;
+  if (req.query.quality) where.quality = String(req.query.quality);
+
   const rolls = await db.fabricRoll.findMany({
-    include: {
-      production: {
-        include: {
-          item: {
-            include: {
-              order: {
-                include: { buyer: true },
-              },
-            },
-          },
-        },
-      },
-    },
+    where,
+    include: { production: { include: { order: { include: { buyer: true } } } } },
     orderBy: { createdAt: 'desc' },
   });
 
-  res.json(
-    page(
-      req,
-      rolls.map((r) => ({
-        ...r,
-        cost: undefined,
-        production: {
-          id: r.production.id,
-          number: r.production.number,
-          item: {
-            fabric: r.production.item.fabric,
-            color: r.production.item.color,
-            order: {
-              id: r.production.item.order.id,
-              number: r.production.item.order.number,
-              buyer: { name: r.production.item.order.buyer.name },
-            },
-          },
-        },
-      })),
-    ),
-  );
+  res.json(page(req, rolls.map((r) => ({ ...r, cost: undefined, production: batchRef(r.production) }))));
 });
 
 // Single roll digital passport

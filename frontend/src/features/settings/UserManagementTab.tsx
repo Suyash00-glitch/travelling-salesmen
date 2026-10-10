@@ -17,7 +17,8 @@ import {
   type DepartmentItem,
   standardRoles,
 } from '@loomos/shared';
-import { useData } from '../../hooks/useFactory';
+import { useData, useLookups } from '../../hooks/useFactory';
+import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
@@ -49,7 +50,61 @@ export function UserManagementTab() {
     onError: (err) => toast.error((err as Error).message),
   });
 
-  const allUsers = usersQuery.data?.data ?? [];
+  const lookups = useLookups();
+  const [spec, setSpec] = useState<FormSpec | null>(null);
+  const everyone = usersQuery.data?.data ?? [];
+  const pending = everyone.filter((u) => u.approvalStatus === 'PENDING');
+  // Pending requests are handled in the card above the table, not with the activate switch.
+  const allUsers = everyone.filter((u) => u.approvalStatus !== 'PENDING');
+
+  const approve = (u: UserManagementItem): FormSpec => ({
+    title: `Approve ${u.name}`,
+    description: `${u.email} asked for ${u.requestedRole ? label(u.requestedRole) : 'access'}. Choose the role they should really have.`,
+    path: `/rbac/users/${u.id}/approve`,
+    fields: [
+      {
+        name: 'role',
+        label: 'Role',
+        type: 'select',
+        value: u.requestedRole ?? '',
+        options: (rolesQuery.data ?? []).map((r) => ({ value: r.code, label: r.name })),
+      },
+      {
+        name: 'buyerId',
+        label: 'Buyer company (buyers only)',
+        type: 'select',
+        required: false,
+        options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })),
+        hint: u.company ? `Leave empty to create “${u.company}, ${u.city}” from the signup.` : undefined,
+      },
+      {
+        name: 'departmentId',
+        label: 'Department',
+        type: 'select',
+        required: false,
+        options: (deptsQuery.data ?? []).map((d) => ({ value: d.id, label: d.name })),
+      },
+      {
+        name: 'workerId',
+        label: 'Linked worker record',
+        type: 'select',
+        required: false,
+        options: (lookups.data?.workers ?? []).map((w) => ({ value: w.id, label: w.name })),
+        hint: 'Floor staff: lets them accept jobs as themselves.',
+      },
+    ],
+    transform: (d) => Object.fromEntries(Object.entries(d).filter(([, v]) => v !== '')),
+    submit: 'Approve and give access',
+  });
+
+  const reject = (u: UserManagementItem): FormSpec => ({
+    title: `Decline ${u.name}`,
+    description: 'They will not be able to sign in.',
+    path: `/rbac/users/${u.id}/reject`,
+    fields: [{ name: 'reason', label: 'Reason', type: 'textarea', span: true }],
+    submit: 'Decline request',
+  });
+
   const filteredUsers = allUsers.filter((u) => {
     const matchesSearch =
       `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(search.toLowerCase());
@@ -63,6 +118,35 @@ export function UserManagementTab() {
 
   return (
     <>
+      {pending.length > 0 && (
+        <div className="approval-card">
+          <h3>Access requests waiting for you ({pending.length})</h3>
+          {pending.map((u) => (
+            <div className="approval-row" key={u.id}>
+              <div>
+                <strong>{u.name}</strong> · {u.email}
+                <p>
+                  Asked for {u.requestedRole ? label(u.requestedRole) : 'access'}
+                  {u.company ? ` · ${u.company}, ${u.city}` : ''}
+                  {u.phone ? ` · ${u.phone}` : ''}
+                  {` · ${new Date(u.createdAt).toLocaleDateString('en-IN')}`}
+                </p>
+                {u.note && <p>“{u.note}”</p>}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Button size="sm" onClick={() => setSpec(approve(u))}>
+                  <CheckCircle2 size={14} /> Approve
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setSpec(reject(u))}>
+                  <XCircle size={14} /> Decline
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {spec && <ActionForm spec={spec} onClose={() => setSpec(null)} />}
+
       <Panel
         title="User & Account Administration"
         subtitle="Control user logins, assign multiple roles, link factory departments, and suspend accounts."
@@ -152,9 +236,13 @@ export function UserManagementTab() {
                     </div>
                   </td>
                   <td>
-                    <Badge value={u.active ? 'PASSED' : 'OFFLINE'}>
-                      {u.active ? 'Active' : 'Suspended'}
-                    </Badge>
+                    {u.approvalStatus === 'REJECTED' ? (
+                      <Badge value="REJECTED">Signup declined</Badge>
+                    ) : (
+                      <Badge value={u.active ? 'PASSED' : 'OFFLINE'}>
+                        {u.active ? 'Active' : 'Suspended'}
+                      </Badge>
+                    )}
                   </td>
                   <td>
                     <div className="flex gap-1.5 items-center">
@@ -168,7 +256,7 @@ export function UserManagementTab() {
                         Edit
                       </Button>
 
-                      <Button
+                      {u.approvalStatus === 'APPROVED' && <Button
                         size="sm"
                         variant={u.active ? 'outline' : 'default'}
                         onClick={() => toggleStatus.mutate(u.id)}
@@ -177,7 +265,7 @@ export function UserManagementTab() {
                       >
                         {u.active ? <XCircle size={13} /> : <CheckCircle2 size={13} />}
                         {u.active ? 'Suspend' : 'Activate'}
-                      </Button>
+                      </Button>}
                     </div>
                   </td>
                 </tr>

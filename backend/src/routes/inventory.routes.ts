@@ -8,7 +8,7 @@ import {
   receiveYarn,
   reserveYarn,
   adjustStock,
-} from '../operations.js';
+} from '../services/inventory.service.js';
 
 export const inventoryRouter = Router();
 

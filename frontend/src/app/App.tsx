@@ -8,6 +8,7 @@ import { OrdersPage, OrderDetailsPage } from '../features/orders/OrdersPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { ProcurementPage } from '../features/procurement/ProcurementPage';
 import { ProductionPage } from '../features/production/ProductionPage';
+import { BatchesPage } from '../features/production/BatchesPage';
 import { MachinesPage } from '../features/machines/MachinesPage';
 import { QualityPage, RollPassportPage } from '../features/quality/QualityPage';
 import { DispatchPage } from '../features/dispatch/DispatchPage';
@@ -77,6 +78,14 @@ export function App() {
           element={
             <Guard area="production">
               <ProductionPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="batches"
+          element={
+            <Guard area="production">
+              <BatchesPage />
             </Guard>
           }
         />

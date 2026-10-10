@@ -40,8 +40,8 @@ test.describe('Workspace Navigation & System Modals', () => {
 
     const modal = page.locator('.dialog-content');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('Factory inbox');
-    await expect(modal).toContainText('The right information, at the right time.');
+    await expect(modal).toContainText('Notifications');
+    await expect(modal).toContainText('What happened, and what is waiting for you.');
 
     // Close modal
     await page.keyboard.press('Escape');

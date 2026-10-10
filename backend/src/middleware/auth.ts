@@ -95,7 +95,11 @@ export async function login(email: string, password: string) {
   const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
   const valid = await bcrypt.compare(password, user?.passwordHash ?? dummyHash);
 
-  ensure(valid && user?.active, 'Email or password is incorrect.', 401);
+  ensure(valid && user, 'Email or password is incorrect.', 401);
+  // Only shown to someone who knows the password, so it does not reveal accounts to strangers.
+  ensure(user.approvalStatus !== 'PENDING', 'Your account is waiting for administrator approval.', 403);
+  ensure(user.approvalStatus !== 'REJECTED', 'Your signup request was declined. Contact your administrator.', 403);
+  ensure(user.active, 'Your account has been suspended. Contact your administrator.', 403);
 
   const token = randomBytes(32).toString('hex');
   const csrf = randomBytes(32).toString('hex');
@@ -141,14 +145,24 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
   next();
 }
 
-export const authorize = (area: Area) => (req: Request, _res: Response, next: NextFunction) => {
-  const userRoles = [req.actor.role, ...(req.actor.roles ?? [])];
-  const isAllowed = userRoles.some((r) => can(r, area)) || hasPermission(req.actor, area, 'view');
+// Can this user see an area at all? (role list first, then granular permissions)
+function canSee(actor: CurrentUser, area: Area) {
+  const userRoles = [actor.role, ...(actor.roles ?? [])];
+  return userRoles.some((r) => can(r, area)) || hasPermission(actor, area, 'view');
+}
 
-  if (!isAllowed) {
+export const authorize = (area: Area) => (req: Request, _res: Response, next: NextFunction) => {
+  if (!canSee(req.actor, area)) {
     throw new DomainError(403, 'Your role does not have access to this area.');
   }
+  next();
+};
 
+// Passes when the user may see any one of the areas.
+export const authorizeAny = (areas: Area[]) => (req: Request, _res: Response, next: NextFunction) => {
+  if (!areas.some((area) => canSee(req.actor, area))) {
+    throw new DomainError(403, 'Your role does not have access to this area.');
+  }
   next();
 };
 

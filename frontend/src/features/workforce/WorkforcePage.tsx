@@ -15,11 +15,6 @@ import {
   SearchBox,
 } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import {
-  StatusDonut,
-  BreakdownBars,
-  groupCounts,
-} from '../../components/shared/FactoryInsights';
 import { money, date, today, label } from '../../lib/utils';
 
 interface Worker {
@@ -131,10 +126,6 @@ export function WorkforcePage() {
     w.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const attendanceTodayState = rows.map(
-    (w) => w.attendance.find((a) => a.date.slice(0, 10) === today())?.status ?? 'NOT_RECORDED'
-  );
-
   return (
     <>
       <PageHeader
@@ -181,29 +172,6 @@ export function WorkforcePage() {
         </div>
       </div>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Today’s attendance"
-          description="One current attendance state per team member"
-          unit="people"
-          items={groupCounts(attendanceTodayState)}
-        />
-        <BreakdownBars
-          title="Team assignments"
-          description="Whether a team member has a recorded job assignment"
-          unit="people"
-          items={[
-            {
-              name: 'Assigned to a job',
-              value: rows.filter((w) => w.assignments.length > 0).length,
-            },
-            {
-              name: 'No current assignment',
-              value: rows.filter((w) => !w.assignments.length).length,
-            },
-          ]}
-        />
-      </div>
 
       <div className="shift-cards">
         {lookup.data?.shifts.map((s) => (

@@ -11,7 +11,7 @@ import {
 import type { Dashboard } from '@loomos/shared';
 import { can } from '@loomos/shared';
 import { useAuth } from '../auth/Auth';
-import { useData } from '../../hooks/useFactory';
+import { useData, useLookups } from '../../hooks/useFactory';
 import { Button } from '../../components/ui/button';
 import {
   PageHeader,
@@ -23,12 +23,13 @@ import {
   ExportButton,
 } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import { FactoryInsights } from '../../components/shared/FactoryInsights';
+import { FactoryAnalytics } from '../../components/shared/FactoryAnalytics';
 import { number, today, exportCsv } from '../../lib/utils';
 
 export function ReportsPage() {
   const [day, setDay] = useState(today());
   const query = useData<Dashboard>(`/dashboard?date=${day}`);
+  const lookups = useLookups();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -103,7 +104,7 @@ export function ReportsPage() {
         />
       </div>
 
-      <FactoryInsights data={d} report />
+      <FactoryAnalytics lookups={lookups.data} />
 
       <Panel
         title="Machine output report"

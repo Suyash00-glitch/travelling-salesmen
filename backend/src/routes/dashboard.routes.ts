@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { dashboard, workInbox } from '../operations.js';
+import { dashboard, workInbox } from '../services/dashboard.service.js';
+import { analytics } from '../services/analytics.service.js';
+import { listNotifications, markRead, checkDelays } from '../services/notification.service.js';
 import { subscribe } from '../lib/events.js';
 
 export const dashboardRouter = Router();
@@ -65,6 +67,33 @@ dashboardRouter.get('/dashboard', authorize('dashboard'), async (req, res) => {
 dashboardRouter.get('/notifications', authorize('dashboard'), async (req, res) => {
   const [work, { alerts }] = await Promise.all([workInbox(req.actor), dashboard(req.actor)]);
   res.json([...work, ...alerts]);
+});
+
+// Factory analytics for charts. Filters: from, to (yyyy-mm-dd), buyerId, stage.
+dashboardRouter.get('/analytics', authorize('dashboard'), async (req, res) => {
+  const day = z.string().date().optional();
+  res.json(
+    await analytics({
+      from: day.parse(req.query.from || undefined),
+      to: day.parse(req.query.to || undefined),
+      buyerId: req.query.buyerId ? String(req.query.buyerId) : undefined,
+      stage: req.query.stage ? String(req.query.stage) : undefined,
+    }),
+  );
+});
+
+// Stored notifications for the signed-in user. The browser polls this every 30 seconds.
+dashboardRouter.get('/notifications/feed', async (req, res) => {
+  await checkDelays();
+  res.json(await listNotifications(req.actor.id));
+});
+
+dashboardRouter.post('/notifications/read-all', async (req, res) => {
+  res.json(await markRead(req.actor.id));
+});
+
+dashboardRouter.post('/notifications/:id/read', async (req, res) => {
+  res.json(await markRead(req.actor.id, String(req.params.id)));
 });
 
 // Live update stream: the browser refreshes its data whenever anything changes

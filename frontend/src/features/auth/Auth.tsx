@@ -4,6 +4,7 @@ import type { CurrentUser } from '@loomos/shared';
 import { api, setCsrf } from '../../services/api';
 import { Loading } from '../../components/shared/common';
 import { LoginPage, Login } from './LoginPage';
+import { SignupPage } from './SignupPage';
 
 export { LoginPage, Login };
 
@@ -27,6 +28,7 @@ export function useAuth(): AuthContextValue {
 export function AuthGate({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [signingUp, setSigningUp] = useState(false);
 
   const session = useQuery({
     queryKey: ['session'],
@@ -43,9 +45,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session.data) {
+    if (signingUp) return <SignupPage onBack={() => setSigningUp(false)} />;
     return (
       <LoginPage
         onSuccess={() => void client.invalidateQueries({ queryKey: ['session'] })}
+        onSignup={() => setSigningUp(true)}
       />
     );
   }

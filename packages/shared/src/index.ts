@@ -210,16 +210,44 @@ const money = z.coerce.number().positive().max(100000000).multipleOf(0.01);
 const text = z.string().trim().min(1).max(200);
 
 export const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1).max(128) });
+// Roles a new user may ask for when signing up. Admin roles can only be given by an administrator.
+export const signupRoles = [
+  'PRODUCTION_MANAGER',
+  'INVENTORY_MANAGER',
+  'PROCUREMENT_MANAGER',
+  'SPINNING_OPERATOR',
+  'WEAVING_OPERATOR',
+  'DYEING_OPERATOR',
+  'QUALITY_INSPECTOR',
+  'DISPATCH_MANAGER',
+  'SHIFT_SUPERVISOR',
+  'MAINTENANCE_ENGINEER',
+  'ACCOUNTS_MANAGER',
+  'BUYER',
+] as const;
+
 export const signupSchema = z.object({
   name: text,
-  email: z.string().email(),
-  password: z.string().min(10).max(128),
-  role: z.string(),
-  company: text.optional(),
-  city: text.optional(),
-}).refine((v) => v.role !== 'BUYER' || (Boolean(v.company) && Boolean(v.city)), {
+  email: z.string().trim().email(),
+  password: z.string().min(10, 'Password must be at least 10 characters.').max(128),
+  requestedRole: z.enum(signupRoles),
+  phone: z.string().trim().max(30).default(''),
+  company: z.string().trim().max(200).default(''),
+  city: z.string().trim().max(100).default(''),
+  note: z.string().trim().max(500).default(''),
+}).refine((v) => v.requestedRole !== 'BUYER' || (Boolean(v.company) && Boolean(v.city)), {
   message: 'Company name and city are required for buyer accounts.',
+  path: ['company'],
 });
+
+// The administrator decides the final role when approving a signup.
+export const approveUserSchema = z.object({
+  role: z.string().min(2),
+  buyerId: z.string().optional(),
+  departmentId: z.string().optional(),
+  workerId: z.string().optional(),
+});
+export const rejectUserSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 export const orderSchema = z.object({ buyerId: text, deadline: z.string().date(), priority: z.enum(['NORMAL', 'HIGH', 'URGENT']).default('NORMAL'), instructions: z.string().max(2000).default(''), items: z.array(z.object({ recipeId: text, fabric: text, color: text, quantity: positive, price: money })).min(1).max(20) });
 export const receiptSchema = z.object({ supplierId: text, purchaseId: z.string().optional(), reference: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, location: text, threshold: z.coerce.number().min(0).default(100) });
 export const reservationSchema = z.object({ productionId: text, lotId: text, quantity: positive });
@@ -287,19 +315,107 @@ export const departmentSchema = z.object({
   active: z.boolean().default(true),
 });
 
+// ==================== PRODUCTION BATCHES, REWORK & ISSUES ====================
+
+export const productionStages = ['SPINNING', 'WEAVING', 'DYEING'] as const;
+// Departments a batch can currently be in (used by filters and charts).
+export const departments = ['SPINNING', 'WEAVING', 'DYEING', 'QUALITY', 'DISPATCH', 'FINISHED'] as const;
+
+// Why a batch exists. ORDER batches come from customer orders; the rest are standalone.
+export const productionPurposes = ['STOCK', 'INTERNAL', 'REPLACEMENT', 'URGENT'] as const;
+
+export const defectTypes = [
+  'SPINNING_DEFECT',
+  'WEAVING_DEFECT',
+  'DYEING_DEFECT',
+  'QUALITY_FAILURE',
+  'MACHINE_FAULT',
+  'WRONG_QUANTITY',
+  'DAMAGED_MATERIAL',
+] as const;
+
+export const issueTypes = [
+  'MACHINE_BREAKDOWN',
+  'WORKER_UNAVAILABLE',
+  'MATERIAL_SHORTAGE',
+  'WRONG_QUANTITY',
+  'QUALITY_FAILURE',
+  'DELAY',
+  'INTERRUPTION',
+  'OTHER',
+] as const;
+
+// Simple status groups used by the production filters.
+export const batchStatusGroups = ['PENDING', 'ONGOING', 'COMPLETED', 'FAILED', 'REWORK'] as const;
+
+const optionalId = z.string().trim().optional().transform((v) => v || undefined);
+
+export const standaloneBatchSchema = z.object({
+  recipeId: text,
+  color: text,
+  quantity: positive,
+  purpose: z.enum(productionPurposes),
+  priority: z.enum(['NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
+  dueDate: z.string().date().optional().or(z.literal('').transform(() => undefined)),
+  notes: z.string().trim().max(1000).default(''),
+  // Optional: leave out a stage to skip it (for example, greige fabric that needs no dyeing).
+  stages: z.array(z.enum(productionStages)).min(1).max(3).optional(),
+  spinningMachineId: optionalId,
+  weavingMachineId: optionalId,
+  dyeingMachineId: optionalId,
+  workerId: optionalId,
+});
+
+export const reworkRequestSchema = z.object({
+  defectType: z.enum(defectTypes),
+  reason: z.string().trim().min(3).max(1000),
+  returnStage: z.enum(productionStages),
+  quantity: z.coerce.number().min(0).max(100000000).default(0),
+  rollIds: z.array(z.string()).max(100).default([]),
+  machineId: optionalId,
+  workerId: optionalId,
+});
+
+export const issueSchema = z.object({
+  type: z.enum(issueTypes),
+  description: z.string().trim().min(3).max(1000),
+  jobId: optionalId,
+  // Stop the running stage until the problem is fixed.
+  holdJob: z.coerce.boolean().default(false),
+});
+
+export const resolveIssueSchema = z.object({ resolution: z.string().trim().min(3).max(1000) });
+
+export const reassignSchema = z.object({
+  machineId: optionalId,
+  workerId: optionalId,
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const replacementSchema = z.object({
+  quantity: positive,
+  reason: z.string().trim().min(3).max(1000),
+});
+
 export type OrderInput = z.infer<typeof orderSchema>;
+export type StandaloneBatchInput = z.infer<typeof standaloneBatchSchema>;
+export type ReworkRequestInput = z.infer<typeof reworkRequestSchema>;
+export type IssueInput = z.infer<typeof issueSchema>;
 export type ReceiptInput = z.infer<typeof receiptSchema>;
 export type OutputInput = z.infer<typeof outputSchema>;
 export interface PageResponse<T> { data: T[]; total: number; page: number; pageSize: number }
 export interface OrderSummary { id: string; number: string; buyer: { id: string; name: string; initials: string; city: string }; status: string; priority: string; deadline: string; createdAt: string; instructions: string; quantity: string; value?: string; produced: string; approved: string; dispatched: string; progress: number; stage: string; risk: { level: string; reasons: string[] }; items: OrderItem[] }
 export interface OrderItem { id: string; fabric: string; color: string; quantity: string; price: string; recipeId: string; recipe: { name: string; specification: string }; production: ProductionSummary | null }
 export interface ProductionSummary { id: string; number: string; status: string; target: string; jobs: JobSummary[] }
-export interface JobSummary { id: string; stage: string; sequence: number; status: string; target: string; output: string; machineId: string | null; workerId: string | null; shiftId: string | null; machine?: MachineSummary | null; worker?: { name: string } | null; production?: { number: string; item: { fabric: string; color: string; order: { id: string; number: string; buyer: { name: string } } } } }
+export interface JobSummary { id: string; stage: string; sequence: number; status: string; target: string; output: string; machineId: string | null; workerId: string | null; shiftId: string | null; machine?: MachineSummary | null; worker?: { name: string } | null; production?: BatchRef }
 export interface MachineSummary { id: string; code: string; name: string; type: string; location: string; status: string; capacityPerHour: string; reportedAt: string; todayOutput: string; jobs: JobSummary[]; downtime: { id: string; reason: string; startedAt: string; endedAt: string | null }[] }
 export interface YarnSummary { id: string; code: string; material: string; color: string; specification: string; location: string; onHand: string; reserved: string; available: string; costPerKg: string; threshold: string; supplier: { id: string; name: string }; createdAt: string }
-export interface RollSummary { id: string; code: string; length: string; quality: string; location: string; cost?: string; activeShipmentId: string | null; createdAt: string; production: { id: string; number: string; item: { fabric: string; color: string; order: { id: string; number: string; buyer: { name: string } } } } }
+export interface RollSummary { id: string; code: string; length: string; quality: string; location: string; cost?: string; activeShipmentId: string | null; createdAt: string; production: BatchRef }
 export interface Lookup { id: string; name: string; [key: string]: unknown }
 export interface Lookups { buyers: Lookup[]; suppliers: Lookup[]; recipes: (Lookup & { material: string; specification: string; kgPerMetre: string; wastePercent: string; route: string[]; overheadPerMetre: string })[]; workers: Lookup[]; shifts: Lookup[]; machines: Lookup[] }
+// Short description of a production batch. `order` is null for standalone (stock / internal) batches.
+export interface BatchRef { id: string; number: string; fabric: string; color: string; recipeId: string; purpose: string; order: { id: string; number: string; buyer: { id: string; name: string } } | null }
+
 export interface Notice { id: string; title: string; description: string; severity: 'warning' | 'danger' | 'success'; href: string }
 export interface Dashboard { activeOrders: number; dueSoon: number; delayed: number; availableYarn: string; todayOutput: string; previousOutput: string; pendingQuality: number; passed: number; rejected: number; finishedRolls: number; pendingDispatch: number; running: number; idle: number; breakdown: number; totalMachines: number; series: { date: string; label: string; output: number; target: number }[]; orders: OrderSummary[]; machines: MachineSummary[]; alerts: Notice[]; activity: { id: string; action: string; detail: string; actorName: string; createdAt: string }[]; finance?: { billed: string; received: string; cost: string; outstanding: string }; date: string }
 
@@ -320,6 +436,12 @@ export interface UserManagementItem {
   role: string;
   roles: string[];
   active: boolean;
+  approvalStatus: string;
+  requestedRole: string | null;
+  phone: string;
+  company: string;
+  city: string;
+  note: string;
   buyerId: string | null;
   buyerName?: string;
   workerId: string | null;
@@ -349,4 +471,78 @@ export interface DepartmentItem {
   factoryName: string;
   active: boolean;
   userCount: number;
+}
+
+export interface BatchSummary extends BatchRef {
+  status: string;
+  priority: string;
+  target: string;
+  produced: string;
+  department: string;
+  statusGroup: string;
+  dueDate: string | null;
+  createdAt: string;
+  notes: string;
+  openReworks: number;
+  openIssues: number;
+  machines: string[];
+  jobs: { id: string; stage: string; sequence: number; status: string; target: string; output: string; machineId: string | null; machineCode: string | null; workerId: string | null; workerName: string | null }[];
+}
+
+export interface ReworkItem {
+  id: string;
+  defectType: string;
+  reason: string;
+  fromStage: string;
+  returnStage: string | null;
+  quantity: string;
+  rollCodes: string[];
+  status: string;
+  outcome: string;
+  raisedBy: string;
+  resolvedBy: string;
+  machine: { code: string } | null;
+  worker: { name: string } | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  production: { id: string; number: string; fabric: string } | null;
+}
+
+export interface IssueItem {
+  id: string;
+  type: string;
+  description: string;
+  stage: string | null;
+  status: string;
+  resolution: string;
+  reportedBy: string;
+  resolvedBy: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface BatchDetail extends BatchSummary {
+  replaces: { id: string; number: string } | null;
+  replacements: { id: string; number: string; status: string }[];
+  rolls: { id: string; code: string; length: string; quality: string; activeShipmentId: string | null }[];
+  reworks: ReworkItem[];
+  issues: IssueItem[];
+  history: { id: string; action: string; detail: string; actorName: string; createdAt: string }[];
+}
+
+export interface AppNotification { id: string; title: string; message: string; category: string; link: string; read: boolean; createdAt: string }
+
+export interface Analytics {
+  from: string;
+  to: string;
+  dailyOutput: { date: string; label: string; SPINNING: number; WEAVING: number; DYEING: number }[];
+  departmentOutput: { stage: string; output: number; waste: number }[];
+  machineUtilization: { code: string; type: string; status: string; runHours: number; utilization: number }[];
+  machineStatus: { status: string; count: number }[];
+  productionStatus: { status: string; count: number }[];
+  delays: { delayed: number; onTime: number; late: { id: string; number: string; daysLate: number; department: string }[] };
+  rework: { byType: { type: string; count: number; quantity: number }[]; byStage: { stage: string; count: number }[]; open: number; completed: number };
+  quality: { passed: number; rework: number; rejected: number; passRate: number; daily: { date: string; label: string; passed: number; failed: number }[] };
+  customers: { buyer: string; ordered: number; produced: number; dispatched: number }[];
 }

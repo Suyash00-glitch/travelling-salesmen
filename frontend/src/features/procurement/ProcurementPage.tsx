@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, PackageCheck, Building2 } from 'lucide-react';
+import { Plus, PackageCheck, Building2, ShoppingCart, Truck, CalendarClock } from 'lucide-react';
 import type { PageResponse } from '@loomos/shared';
 import { useData, useLookups } from '../../hooks/useFactory';
 import { Button } from '../../components/ui/button';
@@ -11,13 +11,9 @@ import {
   ErrorState,
   Badge,
   SearchBox,
+  Kpi,
 } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import {
-  StatusDonut,
-  BreakdownBars,
-  groupCounts,
-} from '../../components/shared/FactoryInsights';
 import { number, money, date, today } from '../../lib/utils';
 
 interface Purchase {
@@ -121,18 +117,6 @@ export function ProcurementPage() {
     });
   };
 
-  const incomingDue = [...purchases]
-    .filter((p) => p.status !== 'RECEIVED' && p.status !== 'CANCELLED')
-    .sort((a, b) => a.expectedAt.localeCompare(b.expectedAt))
-    .slice(0, 5)
-    .map((p) => ({
-      name: `${p.number} · ${p.supplier.name}`,
-      value: Math.max(
-        0,
-        Number(p.quantity) - p.receipts.reduce((sum, r) => sum + Number(r.quantity), 0)
-      ),
-    }));
-
   const filteredPurchases = purchases.filter((p) =>
     `${p.number} ${p.supplier.name}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -154,20 +138,13 @@ export function ProcurementPage() {
         </Button>
       </PageHeader>
 
-      <div className="insights-grid">
-        <StatusDonut
-          title="Purchase status"
-          description="Current state of loaded purchase orders"
-          unit="orders"
-          items={groupCounts(purchases.map((p) => p.status))}
-        />
-        <BreakdownBars
-          title="Incoming material"
-          description="Remaining quantities on the next five purchases due"
-          unit="kg"
-          items={incomingDue}
-        />
+      <div className="kpi-grid">
+        <Kpi label="Open purchase orders" value={purchases.filter((p) => !['RECEIVED', 'CANCELLED'].includes(p.status)).length} icon={<ShoppingCart size={19} />} meta={`${number(purchases.filter((p) => !['RECEIVED', 'CANCELLED'].includes(p.status)).reduce((s, p) => s + Number(p.quantity) - p.receipts.reduce((r, x) => r + Number(x.quantity), 0), 0))} kg still to arrive`} accent />
+        <Kpi label="Due this week" value={purchases.filter((p) => !['RECEIVED', 'CANCELLED'].includes(p.status) && p.expectedAt.slice(0, 10) <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)).length} icon={<CalendarClock size={19} />} meta={`${purchases.filter((p) => !['RECEIVED', 'CANCELLED'].includes(p.status) && p.expectedAt.slice(0, 10) < today()).length} overdue`} />
+        <Kpi label="Received" value={purchases.filter((p) => p.status === 'RECEIVED').length} icon={<Truck size={19} />} meta={`${purchases.filter((p) => p.status === 'PARTIAL').length} partly received`} />
+        <Kpi label="Suppliers" value={lookups.data?.suppliers.length ?? 0} icon={<Building2 size={19} />} meta="Yarn and material partners" />
       </div>
+
 
       <div className="supplier-grid">
         {lookups.data?.suppliers.map((s) => (

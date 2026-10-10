@@ -22,9 +22,10 @@ import {
   Package,
   CheckCircle2,
   Layers,
+  BarChart3,
 } from 'lucide-react';
 import type { Dashboard, OrderSummary } from '@loomos/shared';
-import { can } from '@loomos/shared';
+import { can, hasPermission } from '@loomos/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useData } from '../../hooks/useFactory';
 import { PreviewButton } from '../../components/shared/PreviewButton';
@@ -42,8 +43,8 @@ import {
   Empty,
   ExportButton,
 } from '../../components/shared/common';
+import { Button } from '../../components/ui/button';
 import { DataTable } from '../../components/tables/DataTable';
-import { FactoryInsights } from '../../components/shared/FactoryInsights';
 import { number, date, today, exportCsv, label } from '../../lib/utils';
 
 export function DashboardPage() {
@@ -51,6 +52,8 @@ export function DashboardPage() {
   const [day, setDay] = useState(today());
   const navigate = useNavigate();
   const query = useData<Dashboard>(`/dashboard?date=${day}`);
+  // Managers and admins can open the full analytics on the Reports page.
+  const showAnalytics = can(user.role, 'reports') || hasPermission(user, 'production', 'manage');
 
   if (query.isPending) return <Loading />;
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
@@ -128,6 +131,12 @@ export function DashboardPage() {
           />
         </label>
         <ExportButton onClick={() => exportCsv('factory-overview', d.series)} />
+        {showAnalytics && (
+          <Button onClick={() => navigate('/reports')}>
+            <BarChart3 size={16} />
+            Analytics
+          </Button>
+        )}
       </PageHeader>
 
       <div className="overview-ribbon">
@@ -231,22 +240,22 @@ export function DashboardPage() {
               <AreaChart data={d.series} margin={{ left: 0, right: 16, top: 20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="outputFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#318c70" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#318c70" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#c8f135" stopOpacity={0.55} />
+                    <stop offset="95%" stopColor="#c8f135" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e9ece7" />
+                <CartesianGrid vertical={false} stroke="#eceef1" />
                 <XAxis
                   dataKey="label"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#89918b', fontSize: 11 }}
+                  tick={{ fill: '#3b4049', fontSize: 12 }}
                   dy={10}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#89918b', fontSize: 10 }}
+                  tick={{ fill: '#3b4049', fontSize: 12 }}
                   width={46}
                   tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))}
                 />
@@ -257,14 +266,14 @@ export function DashboardPage() {
                 <ReferenceLine
                   ifOverflow="extendDomain"
                   y={d.series[0]?.target ?? 0}
-                  stroke="#b8c4ad"
+                  stroke="#9aa0a8"
                   strokeDasharray="5 5"
                 />
                 <Area
                   isAnimationActive={false}
                   type="monotone"
                   dataKey="output"
-                  stroke="#278369"
+                  stroke="#111316"
                   strokeWidth={2.5}
                   fill="url(#outputFill)"
                   activeDot={{ r: 5, stroke: '#fff', strokeWidth: 3 }}
@@ -327,8 +336,6 @@ export function DashboardPage() {
           </button>
         </Panel>
       </div>
-
-      <FactoryInsights data={d} />
 
       <div className="dashboard-bottom">
         <Panel
