@@ -5,6 +5,7 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   can,
   hasPermission,
+  isStandardRole,
   type Area,
   type CurrentUser,
   type PermissionResource,
@@ -59,9 +60,11 @@ export async function sessionUser(token?: string) {
   }
   const rolesList = Array.from(assignedRolesSet);
 
-  // Aggregate all granular permission codes across all assigned roles
+  // Standard roles are defined once, in code (ROLE_PERMISSIONS_TEMPLATE). Only custom roles
+  // created in Settings bring their own permission list from the database.
   const permissionsSet = new Set<string>();
   for (const ur of u.userRoles) {
+    if (isStandardRole(ur.role.code)) continue;
     for (const rp of ur.role.permissions) {
       if (rp.permission?.code) {
         permissionsSet.add(rp.permission.code);

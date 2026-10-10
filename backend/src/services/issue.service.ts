@@ -1,5 +1,5 @@
 import type { Tx } from '@loomos/db';
-import { hasPermission, type IssueInput } from '@loomos/shared';
+import type { IssueInput } from '@loomos/shared';
 import { audit, ensure, type Actor } from '../lib/domain.js';
 import { notify, managers } from './notification.service.js';
 
@@ -18,7 +18,6 @@ const issueLabels: Record<string, string> = {
 };
 
 export async function reportIssue(tx: Tx, productionId: string, input: IssueInput, actor: Actor) {
-  ensure(hasPermission(actor, 'production', 'update') || hasPermission(actor, 'quality', 'update'), 'Your role cannot report production problems.', 403);
   const batch = await tx.productionOrder.findUnique({ where: { id: productionId }, include: { jobs: true } });
   ensure(batch, 'Batch not found.', 404);
 
@@ -61,7 +60,6 @@ export async function reportIssue(tx: Tx, productionId: string, input: IssueInpu
 }
 
 export async function resolveIssue(tx: Tx, issueId: string, resolution: string, actor: Actor) {
-  ensure(hasPermission(actor, 'production', 'update'), 'Your role cannot close production problems.', 403);
   const issue = await tx.productionIssue.findUnique({ where: { id: issueId }, include: { production: true } });
   ensure(issue, 'Problem record not found.', 404);
   ensure(issue.status === 'OPEN', 'This problem is already resolved.');

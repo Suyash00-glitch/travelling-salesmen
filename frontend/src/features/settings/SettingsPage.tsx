@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { PageHeader, Panel, Badge } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import { label } from '../../lib/utils';
+import { label, money } from '../../lib/utils';
 import { UserManagementTab } from './UserManagementTab';
 import { RoleManagementTab } from './RoleManagementTab';
 import { FactoryDepartmentTab } from './FactoryDepartmentTab';
@@ -30,7 +30,8 @@ export function SettingsPage() {
       title: 'Create fabric recipe',
       path: '/recipes',
       fields: [
-        { name: 'name', label: 'Recipe name' },
+        { name: 'name', label: 'Material / fabric name' },
+        { name: 'pricePerMetre', label: 'Selling price per metre (₹)', type: 'number', min: 0.01 },
         { name: 'material', label: 'Material type' },
         { name: 'specification', label: 'Yarn specification' },
         {
@@ -148,6 +149,7 @@ export function SettingsPage() {
               { accessorKey: 'name', header: 'Fabric recipe' },
               { accessorKey: 'material', header: 'Raw material' },
               { accessorKey: 'specification', header: 'Specification' },
+              { accessorKey: 'pricePerMetre', header: 'Price / m', cell: ({ row }) => <strong>{money((row.original as { pricePerMetre: string }).pricePerMetre)}</strong> },
               { accessorKey: 'kgPerMetre', header: 'kg / m' },
               { accessorKey: 'wastePercent', header: 'Waste %' },
               {
@@ -155,6 +157,21 @@ export function SettingsPage() {
                 header: 'Route',
                 cell: ({ row }) =>
                   (row.original as { route: string[] }).route.map(label).join(' → '),
+              },
+              {
+                id: 'price',
+                header: '',
+                cell: ({ row }) => (
+                  <Button size="sm" variant="outline" onClick={() => setSpec({
+                    title: `Set price · ${(row.original as { name: string }).name}`,
+                    description: 'Buyers see this price when ordering. Orders already placed keep their old price.',
+                    path: `/recipes/${(row.original as { id: string }).id}/price`,
+                    fields: [{ name: 'pricePerMetre', label: 'Price per metre (₹)', type: 'number', min: 0.01, value: Number((row.original as { pricePerMetre: string }).pricePerMetre) }],
+                    submit: 'Save price',
+                  })}>
+                    Set price
+                  </Button>
+                ),
               },
             ]}
           />

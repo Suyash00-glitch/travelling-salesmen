@@ -4,12 +4,13 @@ import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { page, id, write, empty, reason } from '../lib/route-helpers.js';
 import {
+  assignJob,
+  handoverJob,
   startJob,
   recordOutput,
-  transitionJob,
-  advanceProductionJob,
+  pauseJob,
+  completeJob,
   createStandaloneBatch,
-  reassignJob,
   cancelBatch,
   createReplacement,
   listBatches,
@@ -33,6 +34,7 @@ productionRouter.get('/', authorize('production'), async (req, res) => {
   };
   if (stage) where.stage = stage;
   if (q(req, 'machineId')) where.machineId = q(req, 'machineId');
+  if (q(req, 'workerId')) where.workerId = q(req, 'workerId');
   if (q(req, 'buyerId')) where.production = { ...(where.production as object), order: { buyerId: q(req, 'buyerId') } };
   if (q(req, 'orderId')) where.production = { ...(where.production as object), orderId: q(req, 'orderId') };
 
@@ -41,6 +43,7 @@ productionRouter.get('/', authorize('production'), async (req, res) => {
     include: {
       machine: { select: { id: true, name: true, code: true, type: true, status: true } },
       worker: { select: { id: true, name: true } },
+      shift: { select: { id: true, name: true } },
       production: {
         include: {
           order: { include: { buyer: true } },
@@ -71,7 +74,7 @@ productionRouter.get('/', authorize('production'), async (req, res) => {
 
 // ==================== BATCHES ====================
 
-// All batches with combinable filters: customer, order, status, department, machine, dates, purpose, rework.
+// All batches with combinable filters: customer, order, status, department, machine, operator, dates, purpose, rework.
 productionRouter.get('/batches', authorize('production'), async (req, res) => {
   const batches = await listBatches(
     {
@@ -80,6 +83,7 @@ productionRouter.get('/batches', authorize('production'), async (req, res) => {
       status: q(req, 'status'),
       department: q(req, 'department'),
       machineId: q(req, 'machineId'),
+      workerId: q(req, 'workerId'),
       from: q(req, 'from'),
       to: q(req, 'to'),
       purpose: q(req, 'purpose'),
@@ -96,23 +100,25 @@ productionRouter.get('/batches/:id', authorize('production'), async (req, res) =
 });
 
 // Standalone batch: production without a customer order (stock, internal, replacement, urgent).
-write(productionRouter, '/batches', 'production', contracts.standaloneBatchSchema, (tx, input, actor) =>
+write(productionRouter, '/batches', 'production:create', contracts.standaloneBatchSchema, (tx, input, actor) =>
   createStandaloneBatch(tx, input, actor),
 );
 
-write(productionRouter, '/batches/:id/rework', ['production', 'quality'], contracts.reworkRequestSchema, (tx, input, actor, req) =>
+// Sending work back is a decision for the production manager or the quality inspector.
+write(productionRouter, '/batches/:id/rework', ['production:approve', 'quality:manage'], contracts.reworkRequestSchema, (tx, input, actor, req) =>
   raiseRework(tx, id(req), input, actor),
 );
 
-write(productionRouter, '/batches/:id/issues', ['production', 'quality'], contracts.issueSchema, (tx, input, actor, req) =>
+// Anyone running the work, or inspecting it, can report a problem.
+write(productionRouter, '/batches/:id/issues', ['production:update', 'quality:manage'], contracts.issueSchema, (tx, input, actor, req) =>
   reportIssue(tx, id(req), input, actor),
 );
 
-write(productionRouter, '/batches/:id/cancel', 'production', reason, (tx, input, actor, req) =>
+write(productionRouter, '/batches/:id/cancel', 'production:create', reason, (tx, input, actor, req) =>
   cancelBatch(tx, id(req), input.reason, actor),
 );
 
-write(productionRouter, '/batches/:id/replacement', 'production', contracts.replacementSchema, (tx, input, actor, req) =>
+write(productionRouter, '/batches/:id/replacement', 'production:create', contracts.replacementSchema, (tx, input, actor, req) =>
   createReplacement(tx, id(req), input, actor),
 );
 
@@ -130,40 +136,41 @@ productionRouter.get('/reworks', authorize('production'), async (req, res) => {
   res.json(page(req, reworks));
 });
 
-write(productionRouter, '/reworks/:id/cancel', 'production', reason, (tx, input, actor, req) =>
+write(productionRouter, '/reworks/:id/cancel', 'production:approve', reason, (tx, input, actor, req) =>
   cancelRework(tx, id(req), input.reason, actor),
 );
 
-write(productionRouter, '/issues/:id/resolve', 'production', contracts.resolveIssueSchema, (tx, input, actor, req) =>
+write(productionRouter, '/issues/:id/resolve', 'production:approve', contracts.resolveIssueSchema, (tx, input, actor, req) =>
   resolveIssue(tx, id(req), input.resolution, actor),
 );
 
 // ==================== JOB CARDS ====================
 
-// Start / assign a job card
-write(productionRouter, '/jobs/:id/start', 'production', contracts.assignmentSchema.partial(), (tx, input, actor, req) =>
-  startJob(tx, id(req), input, actor),
+// 1. The production manager chooses the machine and operator (also to move stopped work after a breakdown).
+write(productionRouter, '/jobs/:id/assign', 'production:approve', contracts.assignmentSchema, (tx, input, actor, req) =>
+  assignJob(tx, id(req), input, actor),
 );
 
-// One-tap action: accept a waiting job, or finish a running one and hand it to the next team
-write(productionRouter, '/jobs/:id/advance', 'production', empty, (tx, _input, actor, req) =>
-  advanceProductionJob(tx, id(req), actor),
+// 2. Start production: the assigned operator or the manager. Machine, check-in and yarn are checked first.
+write(productionRouter, '/jobs/:id/start', 'production:update', empty, (tx, _input, actor, req) =>
+  startJob(tx, id(req), actor),
 );
 
-// Record metre output
-write(productionRouter, '/jobs/:id/output', 'production', contracts.outputSchema, (tx, input, actor, req) =>
+// 3. Record metre output while running.
+write(productionRouter, '/jobs/:id/output', 'production:update', contracts.outputSchema, (tx, input, actor, req) =>
   recordOutput(tx, id(req), input, actor),
 );
 
-write(productionRouter, '/jobs/:id/pause', 'production', empty, (tx, _input, actor, req) =>
-  transitionJob(tx, id(req), 'pause', actor),
+write(productionRouter, '/jobs/:id/pause', 'production:update', empty, (tx, _input, actor, req) =>
+  pauseJob(tx, id(req), actor),
 );
 
-write(productionRouter, '/jobs/:id/complete', 'production', empty, (tx, _input, actor, req) =>
-  transitionJob(tx, id(req), 'complete', actor),
+// 4. Finish the stage (with the final output of this run) and hand it to the next team.
+write(productionRouter, '/jobs/:id/complete', 'production:update', contracts.completeSchema, (tx, input, actor, req) =>
+  completeJob(tx, id(req), input, actor),
 );
 
-// Move a stage to another machine or worker
-write(productionRouter, '/jobs/:id/reassign', 'production', contracts.reassignSchema, (tx, input, actor, req) =>
-  reassignJob(tx, id(req), input, actor),
+// Shift change: the supervisor hands a running job to the incoming operator on the same machine.
+write(productionRouter, '/jobs/:id/handover', ['attendance:manage', 'production:approve'], contracts.handoverSchema, (tx, input, actor, req) =>
+  handoverJob(tx, id(req), input, actor),
 );

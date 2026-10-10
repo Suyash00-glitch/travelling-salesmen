@@ -1,5 +1,5 @@
 import { db, Prisma, type Tx } from '@loomos/db';
-import { hasPermission, type ReworkRequestInput } from '@loomos/shared';
+import type { ReworkRequestInput } from '@loomos/shared';
 import { audit, D, ensure, sum, type Actor } from '../lib/domain.js';
 import { notify, managers, stageTeams } from './notification.service.js';
 
@@ -8,14 +8,6 @@ import { notify, managers, stageTeams } from './notification.service.js';
 // 2. Every stage from that point on is reset; the return stage becomes "Ready to Accept".
 // 3. The floor team re-runs the stages as normal (the batch shows status REWORK).
 // 4. When the last stage finishes, the rework is closed and the rolls go back to quality check.
-
-export function ensureCanRework(actor: Actor) {
-  ensure(
-    hasPermission(actor, 'production', 'update') || hasPermission(actor, 'quality', 'update'),
-    'Your role cannot send work back for rework.',
-    403,
-  );
-}
 
 // The stage-return rework that is currently open for a batch, if any.
 export function activeRework(tx: Tx, productionId: string) {
@@ -26,7 +18,6 @@ export function activeRework(tx: Tx, productionId: string) {
 }
 
 export async function raiseRework(tx: Tx, productionId: string, input: ReworkRequestInput, actor: Actor) {
-  ensureCanRework(actor);
   const batch = await tx.productionOrder.findUnique({
     where: { id: productionId },
     include: { jobs: { orderBy: { sequence: 'asc' } }, rolls: true },
@@ -70,7 +61,7 @@ export async function raiseRework(tx: Tx, productionId: string, input: ReworkReq
     await tx.jobCard.update({
       where: { id: job.id },
       data: {
-        status: isReturn ? 'READY' : 'PLANNED',
+        status: isReturn ? (input.machineId && input.workerId ? 'ASSIGNED' : 'READY') : 'PLANNED',
         output: 0,
         target: rolls.length ? quantity : job.target,
         startedAt: null,
@@ -165,7 +156,6 @@ export async function finishReworkRun(tx: Tx, productionId: string, actor: Actor
 }
 
 export async function cancelRework(tx: Tx, reworkId: string, reason: string, actor: Actor) {
-  ensure(hasPermission(actor, 'production', 'manage'), 'Only production managers can cancel rework.', 403);
   const rework = await tx.reworkJob.findUnique({ where: { id: reworkId }, include: { production: { include: { jobs: true } } } });
   ensure(rework, 'Rework not found.', 404);
   ensure(['OPEN', 'IN_PROGRESS'].includes(rework.status), 'This rework is already closed.');

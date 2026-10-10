@@ -4,11 +4,7 @@ import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { page, id, write } from '../lib/route-helpers.js';
-import {
-  receiveYarn,
-  reserveYarn,
-  adjustStock,
-} from '../services/inventory.service.js';
+import { receiveYarn, reserveYarn, adjustStock, materialSummary } from '../services/inventory.service.js';
 
 export const inventoryRouter = Router();
 
@@ -19,6 +15,11 @@ inventoryRouter.get('/', authorize('inventory'), async (req, res) => {
     orderBy: { createdAt: 'desc' },
   });
   res.json(page(req, lots.map((l) => ({ ...l, available: l.onHand.minus(l.reserved) }))));
+});
+
+// Stock grouped by material: total, reserved, available, consumed, low-stock flag
+inventoryRouter.get('/materials', authorize('inventory'), async (_req, res) => {
+  res.json(await materialSummary());
 });
 
 // Get stock movements for a specific lot
@@ -32,12 +33,12 @@ inventoryRouter.get('/:id/movements', authorize('inventory'), async (req, res) =
 });
 
 // Receive yarn shipment into inventory
-write(inventoryRouter, '/receipts', 'inventory', contracts.receiptSchema, (tx, input, actor) =>
+write(inventoryRouter, '/receipts', 'inventory:manage', contracts.receiptSchema, (tx, input, actor) =>
   receiveYarn(tx, input, actor),
 );
 
 // Reserve yarn for an order
-write(inventoryRouter, '/reservations', 'inventory', contracts.reservationSchema, (tx, input, actor) =>
+write(inventoryRouter, '/reservations', 'inventory:manage', contracts.reservationSchema, (tx, input, actor) =>
   reserveYarn(tx, input, actor),
 );
 
@@ -45,8 +46,10 @@ write(inventoryRouter, '/reservations', 'inventory', contracts.reservationSchema
 const adjustStockSchema = z.object({
   quantity: z.coerce.number().min(-1000000).max(1000000),
   reason: z.string().min(3),
+  // RETURN (+), DAMAGED (−) or ADJUSTMENT (either way)
+  kind: z.enum(['RETURN', 'DAMAGED', 'ADJUSTMENT']).optional(),
 });
 
-write(inventoryRouter, '/:id/adjust', 'inventory', adjustStockSchema, (tx, input, actor, req) =>
-  adjustStock(tx, id(req), input.quantity, input.reason, actor),
+write(inventoryRouter, '/:id/adjust', 'inventory:manage', adjustStockSchema, (tx, input, actor, req) =>
+  adjustStock(tx, id(req), input.kind === 'DAMAGED' ? -Math.abs(input.quantity) : input.quantity, input.reason, actor, input.kind),
 );

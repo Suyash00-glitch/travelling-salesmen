@@ -4,7 +4,7 @@ import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { ensure, audit, sum } from '../lib/domain.js';
 import { id, write, empty } from '../lib/route-helpers.js';
-import { financialReport, buyerPayment } from '../services/finance.service.js';
+import { financialReport, buyerPayment, createClaim, decideClaim } from '../services/finance.service.js';
 
 export const financeRouter = Router();
 
@@ -17,7 +17,7 @@ financeRouter.get('/reports/finance', authorize('finance'), async (req, res) => 
 });
 
 // Pay wage entry
-write(financeRouter, '/wages/:id/pay', 'finance', empty, async (tx, _input, actor, req) => {
+write(financeRouter, '/wages/:id/pay', 'finance:manage', empty, async (tx, _input, actor, req) => {
   const wage = await tx.wageEntry.findUnique({ where: { id: id(req) } });
   ensure(wage && !wage.paidAt, 'Wage is missing or already paid.');
   const result = await tx.wageEntry.update({
@@ -29,12 +29,12 @@ write(financeRouter, '/wages/:id/pay', 'finance', empty, async (tx, _input, acto
 });
 
 // Record buyer invoice payment
-write(financeRouter, '/invoices/:id/payments', 'finance', contracts.paymentSchema, (tx, input, actor, req) =>
+write(financeRouter, '/invoices/:id/payments', 'finance:manage', contracts.paymentSchema, (tx, input, actor, req) =>
   buyerPayment(tx, id(req), input, actor),
 );
 
 // Record supplier bill payment
-write(financeRouter, '/bills/:id/payments', 'finance', contracts.paymentSchema, async (tx, input, actor, req) => {
+write(financeRouter, '/bills/:id/payments', 'finance:manage', contracts.paymentSchema, async (tx, input, actor, req) => {
   const bill = await tx.supplierBill.findUnique({
     where: { id: id(req) },
     include: { payments: true },
@@ -51,9 +51,15 @@ write(financeRouter, '/bills/:id/payments', 'finance', contracts.paymentSchema, 
   return payment;
 });
 
+// Claims: money owed to or by a buyer or supplier
+write(financeRouter, '/claims', 'finance:manage', contracts.claimSchema, (tx, input, actor) => createClaim(tx, input, actor));
+write(financeRouter, '/claims/:id/decide', 'finance:manage', contracts.claimDecisionSchema, (tx, input, actor, req) =>
+  decideClaim(tx, id(req), input, actor),
+);
+
 // Record operating expense
-write(financeRouter, '/expenses', 'finance', contracts.expenseSchema, async (tx, input, actor) => {
-  const expense = await tx.operatingExpense.create({ data: input });
+write(financeRouter, '/expenses', 'finance:manage', contracts.expenseSchema, async (tx, input, actor) => {
+  const expense = await tx.operatingExpense.create({ data: { ...input, recordedBy: actor.name } });
   await audit(tx, actor, 'finance.expense', expense.id, input.description);
   return expense;
 });

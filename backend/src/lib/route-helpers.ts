@@ -2,8 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Request, Router } from 'express';
 import { z } from 'zod';
 import type { Tx } from '@loomos/db';
-import { hasPermission, type Area } from '@loomos/shared';
-import { authorizeAny } from '../middleware/auth.js';
+import { hasPermission } from '@loomos/shared';
 import { DomainError, mutate, type Actor } from './domain.js';
 import { publish } from './events.js';
 
@@ -25,21 +24,30 @@ export function page<T>(req: Request, data: T[]): { data: T[]; total: number; pa
   };
 }
 
-// `area` can be a list when more than one team may do the action (e.g. rework: production or quality).
+// A permission code such as "production:update". The user needs any one of the listed codes.
+export type Permission = `${string}:${string}`;
+
+export const requireAny = (permissions: Permission[]) => (actor: Actor) => {
+  const allowed = permissions.some((code) => {
+    const [resource, action] = code.split(':');
+    return hasPermission(actor, resource, action);
+  });
+  if (!allowed) throw new DomainError(403, 'Your role is not allowed to do this.');
+};
+
+// Every change to the factory goes through here: exact permission check, validated input,
+// idempotency, one transaction, then a "something changed" event for open screens.
 export function write<S extends z.ZodTypeAny>(
   router: Router,
   path: string,
-  area: Area | Area[],
+  permission: Permission | Permission[],
   schema: S,
   fn: (tx: Tx, input: z.infer<S>, actor: Actor, req: Request) => Promise<unknown>,
 ): void {
-  const areas = Array.isArray(area) ? area : [area];
-  router.post(path, authorizeAny(areas), async (req, res) => {
-    // Seeing an area is not enough to change it: view-only roles are refused here.
-    const canWrite = areas.some((a) =>
-      ['create', 'update', 'approve'].some((action) => hasPermission(req.actor, a, action)),
-    );
-    if (!canWrite) throw new DomainError(403, 'Your role can view this area but not change it.');
+  const permissions = Array.isArray(permission) ? permission : [permission];
+  const check = requireAny(permissions);
+  router.post(path, async (req, res) => {
+    check(req.actor);
 
     const input = schema.parse(req.body);
     const fingerprint = createHash('sha256')
@@ -53,7 +61,7 @@ export function write<S extends z.ZodTypeAny>(
       (tx) => fn(tx, input, req.actor, req),
     );
 
-    areas.forEach((a) => publish(a));
+    new Set(permissions.map((p) => p.split(':')[0])).forEach((area) => publish(area));
     res.json(result);
   });
 }

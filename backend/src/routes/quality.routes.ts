@@ -44,7 +44,7 @@ qualityRouter.get('/:id', async (req, res) => {
 write(
   qualityRouter,
   '/:id/inspections',
-  'quality',
+  'quality:manage',
   contracts.inspectionSchema,
   (tx, input, actor, req) => inspectRoll(tx, id(req), input, actor),
 );
@@ -55,6 +55,6 @@ const reworkSchema = z.object({
   notes: z.string().min(3),
 });
 
-write(qualityRouter, '/:id/rework', 'quality', reworkSchema, (tx, input, actor, req) =>
+write(qualityRouter, '/:id/rework', 'quality:manage', reworkSchema, (tx, input, actor, req) =>
   reworkRoll(tx, id(req), input.cost, input.notes, actor),
 );

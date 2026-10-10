@@ -49,6 +49,7 @@ model Buyer {
   initials String
   users User[]
   orders SalesOrder[]
+  claims Claim[]
 }
 model Recipe {
   id String @id @default(cuid())
@@ -59,6 +60,9 @@ model Recipe {
   wastePercent Decimal @db.Decimal(6,3)
   route String[]
   overheadPerMetre Decimal @db.Decimal(14,2)
+  // Fixed selling price per metre, set by an administrator. Orders copy it at the time of ordering.
+  pricePerMetre Decimal @default(0) @db.Decimal(14,2)
+  active Boolean @default(true)
   items SalesOrderItem[]
   productions ProductionOrder[]
 }
@@ -76,6 +80,7 @@ model SalesOrder {
   shipments Shipment[]
   costs CostAllocation[]
   productions ProductionOrder[]
+  claims Claim[]
   @@index([status,deadline])
 }
 model SalesOrderItem {
@@ -97,6 +102,7 @@ model Supplier {
   city String
   lots YarnLot[]
   purchases PurchaseOrder[]
+  claims Claim[]
 }
 model PurchaseOrder {
   id String @id @default(cuid())
@@ -237,6 +243,7 @@ model JobCard {
   endedAt DateTime?
   entries ProductionEntry[]
   assignments WorkerAssignment[]
+  machineRuns MachineAssignment[]
   @@unique([productionId,sequence])
 }
 model Machine {
@@ -248,6 +255,8 @@ model Machine {
   capacityPerHour Decimal @db.Decimal(12,3)
   hourlyCost Decimal @db.Decimal(14,2)
   status String @default("IDLE")
+  // Deactivated machines keep their history but cannot be assigned.
+  active Boolean @default(true)
   reportedAt DateTime @default(now())
   factoryId String?
   factory Factory? @relation(fields:[factoryId],references:[id])
@@ -256,6 +265,7 @@ model Machine {
   jobs JobCard[]
   downtime DowntimeEvent[]
   reworks ReworkJob[]
+  assignments MachineAssignment[]
 }
 model ProductionEntry {
   id String @id @default(cuid())
@@ -281,9 +291,30 @@ model DowntimeEvent {
   id String @id @default(cuid())
   machineId String
   machine Machine @relation(fields:[machineId],references:[id])
+  // BREAKDOWN or MAINTENANCE
+  kind String @default("BREAKDOWN")
   reason String
+  resolution String @default("")
+  reportedBy String @default("")
   startedAt DateTime @default(now())
   endedAt DateTime?
+}
+
+// Who ran which machine on which job and shift. One row per run; ended when the job stops or moves.
+model MachineAssignment {
+  id String @id @default(cuid())
+  machineId String
+  machine Machine @relation(fields:[machineId],references:[id])
+  jobId String
+  job JobCard @relation(fields:[jobId],references:[id])
+  workerId String?
+  worker Worker? @relation(fields:[workerId],references:[id])
+  shiftId String?
+  shift Shift? @relation(fields:[shiftId],references:[id])
+  reason String @default("")
+  startedAt DateTime @default(now())
+  endedAt DateTime?
+  @@index([machineId,startedAt])
 }
 model FabricRoll {
   id String @id @default(cuid())
@@ -385,6 +416,9 @@ model Shipment {
   driverName String @default("")
   driverPhone String @default("")
   quantity Decimal @db.Decimal(14,3)
+  expectedAt DateTime?
+  deliveredAt DateTime?
+  receivedBy String @default("")
   createdAt DateTime @default(now())
   confirmedAt DateTime?
   cancelledAt DateTime?
@@ -408,9 +442,13 @@ model Invoice {
   shipmentId String @unique
   shipment Shipment @relation(fields:[shipmentId],references:[id])
   total Decimal @db.Decimal(14,2)
+  // Credit from approved claims; outstanding = total - adjustment - payments
+  adjustment Decimal @default(0) @db.Decimal(14,2)
+  dueAt DateTime?
   status String @default("OPEN")
   createdAt DateTime @default(now())
   payments BuyerPayment[]
+  claims Claim[]
 }
 model BuyerPayment {
   id String @id @default(cuid())
@@ -427,6 +465,7 @@ model Shift {
   hours Decimal @db.Decimal(6,2)
   jobs JobCard[]
   attendance Attendance[]
+  machineRuns MachineAssignment[]
 }
 model Worker {
   id String @id @default(cuid())
@@ -444,6 +483,7 @@ model Worker {
   assignments WorkerAssignment[]
   wages WageEntry[]
   reworks ReworkJob[]
+  machineRuns MachineAssignment[]
 }
 model WorkerAssignment {
   id String @id @default(cuid())
@@ -463,6 +503,11 @@ model Attendance {
   date DateTime @db.Date
   hours Decimal @db.Decimal(6,2)
   status String @default("PRESENT")
+  checkInAt DateTime?
+  checkOutAt DateTime?
+  overtimeHours Decimal @default(0) @db.Decimal(6,2)
+  recordedBy String @default("")
+  note String @default("")
   wage WageEntry?
   @@unique([workerId,date])
 }
@@ -494,7 +539,33 @@ model OperatingExpense {
   category String
   description String
   amount Decimal @db.Decimal(14,2)
+  recordedBy String @default("")
   createdAt DateTime @default(now())
+}
+
+// A money claim raised by or against a buyer or supplier (damage, shortage, price difference).
+model Claim {
+  id String @id @default(cuid())
+  number String @unique
+  party String
+  buyerId String?
+  buyer Buyer? @relation(fields:[buyerId],references:[id])
+  supplierId String?
+  supplier Supplier? @relation(fields:[supplierId],references:[id])
+  orderId String?
+  order SalesOrder? @relation(fields:[orderId],references:[id])
+  invoiceId String?
+  invoice Invoice? @relation(fields:[invoiceId],references:[id])
+  amount Decimal @db.Decimal(14,2)
+  reason String
+  // PENDING, APPROVED, REJECTED or RESOLVED
+  status String @default("PENDING")
+  note String @default("")
+  createdBy String @default("")
+  decidedBy String @default("")
+  createdAt DateTime @default(now())
+  decidedAt DateTime?
+  @@index([status,createdAt])
 }
 model AuditLog {
   id String @id @default(cuid())

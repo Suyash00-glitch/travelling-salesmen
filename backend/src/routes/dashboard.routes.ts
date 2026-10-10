@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { dashboard, workInbox } from '../services/dashboard.service.js';
+import { dashboard } from '../services/dashboard.service.js';
 import { analytics } from '../services/analytics.service.js';
 import { listNotifications, markRead, checkDelays } from '../services/notification.service.js';
 import { subscribe } from '../lib/events.js';
@@ -17,7 +17,8 @@ dashboardRouter.get('/lookups', async (req, res) => {
       buyers: [],
       suppliers: [],
       recipes: await db.recipe.findMany({
-        select: { id: true, name: true, material: true, specification: true, route: true },
+        where: { active: true },
+        select: { id: true, name: true, material: true, specification: true, route: true, pricePerMetre: true },
       }),
       workers: [],
       shifts: [],
@@ -29,11 +30,12 @@ dashboardRouter.get('/lookups', async (req, res) => {
   const [buyers, suppliers, recipes, workers, shifts, machines, factories, departments, roles] = await Promise.all([
     db.buyer.findMany(),
     db.supplier.findMany(),
-    db.recipe.findMany(),
-    db.worker.findMany({ where: { active: true }, select: { id: true, name: true, designation: true } }),
+    db.recipe.findMany({ where: { active: true } }),
+    db.worker.findMany({ where: { active: true }, select: { id: true, name: true, designation: true, departmentId: true } }),
     db.shift.findMany(),
     db.machine.findMany({
-      select: { id: true, name: true, code: true, type: true, status: true },
+      where: { active: true },
+      select: { id: true, name: true, code: true, type: true, status: true, departmentId: true },
     }),
     db.factory.findMany({ where: { active: true }, select: { id: true, name: true, code: true } }),
     db.department.findMany({ where: { active: true }, select: { id: true, name: true, code: true, factoryId: true } }),
@@ -45,9 +47,7 @@ dashboardRouter.get('/lookups', async (req, res) => {
     suppliers,
     recipes: recipes.map((r) => ({
       ...r,
-      overheadPerMetre: contracts.can(req.actor.role, 'finance')
-        ? r.overheadPerMetre
-        : undefined,
+      overheadPerMetre: contracts.can(req.actor, 'finance') ? r.overheadPerMetre : undefined,
     })),
     workers,
     shifts,
@@ -61,12 +61,6 @@ dashboardRouter.get('/lookups', async (req, res) => {
 dashboardRouter.get('/dashboard', authorize('dashboard'), async (req, res) => {
   const date = req.query.date ? z.string().date().parse(req.query.date) : undefined;
   res.json(await dashboard(req.actor, date));
-});
-
-// Team inbox first (work handed to you), then factory alerts
-dashboardRouter.get('/notifications', authorize('dashboard'), async (req, res) => {
-  const [work, { alerts }] = await Promise.all([workInbox(req.actor), dashboard(req.actor)]);
-  res.json([...work, ...alerts]);
 });
 
 // Factory analytics for charts. Filters: from, to (yyyy-mm-dd), buyerId, stage.

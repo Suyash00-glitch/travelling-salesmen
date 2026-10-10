@@ -16,8 +16,19 @@ import type { Analytics, Lookups } from '@loomos/shared';
 import { useData } from '../../hooks/useFactory';
 import { ErrorState, ExportButton, Loading, Panel } from './common';
 import { FilterBar, type FilterDef } from './FilterBar';
-import { statusColor } from './FactoryInsights';
 import { exportCsv, label, number } from '../../lib/utils';
+
+// One colour per status, shared with the badges: green = done, blue = moving, amber = waiting,
+// purple = rework, red = problem, grey = not started.
+const statusColors: Record<string, string> = {
+  PASSED: '#087f6b', RUNNING: '#087f6b', COMPLETED: '#087f6b',
+  IN_PROGRESS: '#3567a3', DISPATCHED: '#3567a3',
+  PENDING: '#b7791f', READY: '#b7791f', IDLE: '#b7791f',
+  REWORK: '#7056a3', PAUSED: '#7056a3',
+  REJECTED: '#b83940', BREAKDOWN: '#b83940', BLOCKED: '#b83940', CANCELLED: '#b83940',
+  PLANNED: '#5b6b64',
+};
+const statusColor = (status: string) => statusColors[status] ?? '#5b6b64';
 
 // Factory analytics: every chart is built from real records by GET /analytics.
 // Colours were checked with the palette validator (lightness, chroma, colour-blind separation).

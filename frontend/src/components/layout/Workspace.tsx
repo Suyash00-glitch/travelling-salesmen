@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ShoppingBag, Package, Truck, Factory, Workflow, ShieldCheck, Layers, Users, Wallet, ChartNoAxesCombined, Settings, Search, Bell, ChevronsUpDown, LogOut, Menu, Command, CircleHelp, ChevronRight, ClipboardList, type LucideIcon, } from 'lucide-react';
-import { can, type Area, type Notice, type PageResponse, type OrderSummary } from '@loomos/shared';
+import { can, type Area, type PageResponse, type OrderSummary } from '@loomos/shared';
 import { useAuth } from '../../features/auth/Auth';
-import { useData, useLiveUpdates, useInboxToasts, useNotificationFeed } from '../../hooks/useFactory';
+import { useData, useLiveUpdates, useNotificationFeed } from '../../hooks/useFactory';
 import { label } from '../../lib/utils';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { NotificationsModal } from './NotificationsModal';
@@ -57,8 +57,6 @@ export function Workspace() {
     const live = useLiveUpdates();
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
-    const notices = useData<Notice[]>('/notifications', user.role !== 'BUYER');
-    useInboxToasts(notices.data);
     const { feed, markRead } = useNotificationFeed();
     const unread = feed.data?.unread ?? 0;
     const orders = useData<PageResponse<OrderSummary>>('/orders?pageSize=100', can(user.role, 'orders'));
@@ -195,7 +193,7 @@ export function Workspace() {
             </span>
             <button className="notification-button" onClick={() => setNotifications(true)} aria-label={`View notifications${unread ? ` (${unread} unread)` : ''}`}>
                 <Bell size={19}/>
-                {unread > 0 ? <span className="notification-count">{unread > 99 ? '99+' : unread}</span> : !!notices.data?.length && <i />}
+                {unread > 0 && <span className="notification-count">{unread > 99 ? '99+' : unread}</span>}
               </button>
             <div className="topbar-user" ref={userMenuRef} style={{ position: 'relative' }}>
               <button
@@ -305,7 +303,7 @@ export function Workspace() {
 
       <GlobalSearchModal open={search} onClose={() => setSearch(false)} userRole={user.role} allNavItems={all} ordersData={orders.data}/>
 
-      <NotificationsModal open={notifications} onClose={() => setNotifications(false)} notices={user.role === 'BUYER' ? undefined : notices.data} feed={feed.data?.items} unread={unread} onRead={(id) => markRead.mutate(id)}/>
+      <NotificationsModal open={notifications} onClose={() => setNotifications(false)} feed={feed.data?.items} unread={unread} onRead={(id) => markRead.mutate(id)}/>
 
       <HelpModal open={help} onClose={() => setHelp(false)}/>
     </div>);

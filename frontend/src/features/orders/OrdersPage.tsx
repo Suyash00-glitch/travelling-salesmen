@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ArrowUpRight, ShoppingBag, CheckCircle2, Workflow, Truck, } from 'lucide-react';
-import { can, type OrderSummary, type PageResponse } from '@loomos/shared';
+import { hasPermission, type OrderSummary, type PageResponse } from '@loomos/shared';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useData } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
@@ -101,7 +101,7 @@ export function OrdersPage() {
             deadline: o.deadline,
             status: o.status,
         })))}/>
-        {can(user.role, 'production') && user.role !== 'OPERATOR' && (<Button onClick={() => setCreate(true)}>
+        {user.role !== 'BUYER' && hasPermission(user, 'orders', 'create') && (<Button onClick={() => setCreate(true)}>
             <Plus size={16}/>
             New order
           </Button>)}

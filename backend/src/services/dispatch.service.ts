@@ -2,7 +2,7 @@ import type { Tx } from '@loomos/db';
 import { audit, code, ensure, sum, type Actor } from '../lib/domain.js';
 import { notify } from './notification.service.js';
 
-export async function createShipment(tx: Tx, input: { orderId: string; rollIds: string[]; transport: string; driverName?: string; driverPhone?: string }, actor: Actor) {
+export async function createShipment(tx: Tx, input: { orderId: string; rollIds: string[]; transport: string; driverName?: string; driverPhone?: string; expectedAt?: string }, actor: Actor) {
   ensure(new Set(input.rollIds).size === input.rollIds.length, 'A roll cannot be selected twice.');
   const rolls = await tx.fabricRoll.findMany({ where: { id: { in: input.rollIds } }, include: { production: true } });
   ensure(rolls.length === input.rollIds.length, 'One or more rolls could not be found.', 404);
@@ -32,6 +32,7 @@ export async function createShipment(tx: Tx, input: { orderId: string; rollIds: 
       transport: input.transport,
       driverName: input.driverName ?? '',
       driverPhone: input.driverPhone ?? '',
+      expectedAt: input.expectedAt ? new Date(input.expectedAt) : null,
       quantity,
       rolls: { create: rolls.map((r) => ({ rollId: r.id })) },
     },
@@ -72,7 +73,7 @@ export async function confirmShipment(tx: Tx, id: string, actor: Actor) {
     return item.price;
   };
   const total = sum(shipment.rolls.map((r) => r.roll.length.mul(priceOf(r.roll.production).toString())));
-  const invoice = await tx.invoice.create({ data: { number: code('INV'), shipmentId: id, total } });
+  const invoice = await tx.invoice.create({ data: { number: code('INV'), shipmentId: id, total, dueAt: new Date(Date.now() + 30 * 86400000) } });
 
   await tx.shipment.update({ where: { id }, data: { status: 'DISPATCHED', confirmedAt: new Date() } });
   await tx.fabricRoll.updateMany({ where: { activeShipmentId: id }, data: { location: 'Dispatched' } });
@@ -107,5 +108,25 @@ export async function cancelShipment(tx: Tx, id: string, reason: string, actor: 
   const remaining = await tx.shipment.count({ where: { orderId: shipment.orderId, status: 'DISPATCHED' } });
   await tx.salesOrder.update({ where: { id: shipment.orderId }, data: { status: remaining ? 'PARTIAL' : 'READY' } });
   await audit(tx, actor, 'shipment.cancelled', id, reason);
+  return { id };
+}
+
+// The goods reached the buyer. Only dispatched shipments can be delivered.
+export async function deliverShipment(tx: Tx, id: string, input: { receivedBy: string; note: string }, actor: Actor) {
+  const shipment = await tx.shipment.findUnique({ where: { id }, include: { order: { include: { buyer: true } } } });
+  ensure(shipment, 'Shipment not found.', 404);
+  ensure(shipment.status === 'DISPATCHED', 'Only shipments on the road can be marked delivered.');
+  await tx.shipment.update({ where: { id }, data: { status: 'DELIVERED', deliveredAt: new Date(), receivedBy: input.receivedBy } });
+  await tx.fabricRoll.updateMany({ where: { activeShipmentId: id }, data: { location: 'Delivered' } });
+  await audit(tx, actor, 'shipment.delivered', id, `${shipment.number} delivered${input.receivedBy ? ` · received by ${input.receivedBy}` : ''}${input.note ? ` · ${input.note}` : ''}`);
+  await audit(tx, actor, 'shipment.delivered', shipment.orderId, `${shipment.number} delivered to ${shipment.order.buyer.name}`);
+  const buyerUsers = await tx.user.findMany({ where: { buyerId: shipment.order.buyerId, active: true }, select: { id: true } });
+  await notify(tx, {
+    userIds: buyerUsers.map((u) => u.id),
+    title: `${shipment.order.number} delivered`,
+    message: `${shipment.quantity.toString()} m arrived.${input.note ? ` ${input.note}` : ''}`,
+    category: 'DISPATCH',
+    link: '/buyer',
+  });
   return { id };
 }

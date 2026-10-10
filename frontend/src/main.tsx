@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthGate } from './features/auth/Auth';
 import { App } from './app/App';
+import { HeroEntry } from './features/hero/HeroEntry';
 import './styles/globals.css';
 import './styles/theme.css';
 import './styles/features.css';
@@ -24,9 +25,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthGate>
-          <App />
-        </AuthGate>
+        <HeroEntry>
+          <AuthGate>
+            <App />
+          </AuthGate>
+        </HeroEntry>
       </BrowserRouter>
       <Toaster position="bottom-right" richColors closeButton />
     </QueryClientProvider>

@@ -322,8 +322,8 @@ function CreateUserModal({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('LoomDemo2026!');
-  const [primaryRole, setPrimaryRole] = useState('OPERATOR');
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(['OPERATOR']);
+  const [primaryRole, setPrimaryRole] = useState('WEAVING_OPERATOR');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['WEAVING_OPERATOR']);
   const [factoryId, setFactoryId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
 

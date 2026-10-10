@@ -16,9 +16,10 @@ import { Spinner } from '../../components/shared/common';
 interface LoginPageProps {
   onSuccess: () => void;
   onSignup?: () => void;
+  onBuyerSignup?: () => void;
 }
 
-export function LoginPage({ onSuccess, onSignup }: LoginPageProps) {
+export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps) {
   const [email, setEmail] = useState('owner@loomos.demo');
   const [password, setPassword] = useState('LoomDemo2026!');
   const [show, setShow] = useState(false);
@@ -27,6 +28,7 @@ export function LoginPage({ onSuccess, onSignup }: LoginPageProps) {
 
   const demoAccounts = [
     { label: 'Super Admin', email: 'owner@loomos.demo' },
+    { label: 'Operations Mgr', email: 'operations@loomos.demo' },
     { label: 'Production Mgr', email: 'production@loomos.demo' },
     { label: 'Inventory Mgr', email: 'inventory@loomos.demo' },
     { label: 'Procurement Mgr', email: 'procurement@loomos.demo' },
@@ -201,6 +203,7 @@ export function LoginPage({ onSuccess, onSignup }: LoginPageProps) {
             <div className="auth-switch">
               New to the factory?
               <button type="button" onClick={onSignup}>Request an account</button>
+              {onBuyerSignup && <> · Buyer? <button type="button" onClick={onBuyerSignup}>Create a buyer account</button></>}
             </div>
           )}
 

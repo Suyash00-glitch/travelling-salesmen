@@ -8,14 +8,14 @@ import { label } from '../../lib/utils';
 
 // Self-registration. The account is created as "pending" and an administrator
 // must approve it (and choose the final role) before the person can sign in.
-export function SignupPage({ onBack }: { onBack: () => void }) {
+export function SignupPage({ onBack, buyerOnly = false }: { onBack: () => void; buyerOnly?: boolean }) {
   const [form, setForm] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
     confirm: '',
-    requestedRole: '',
+    requestedRole: buyerOnly ? 'BUYER' : '',
     company: '',
     city: '',
     note: '',
@@ -56,7 +56,7 @@ export function SignupPage({ onBack }: { onBack: () => void }) {
           Loom<span>OS</span>
         </div>
         <div className="login-story-main">
-          <span className="eyebrow">JOIN YOUR FACTORY WORKSPACE</span>
+          <span className="eyebrow">{buyerOnly ? 'BUYER PORTAL' : 'JOIN YOUR FACTORY WORKSPACE'}</span>
           <h1>
             Ask for access.
             <br />
@@ -83,8 +83,9 @@ export function SignupPage({ onBack }: { onBack: () => void }) {
         </span>
 
         <div className="login-form">
-          <div className="eyebrow">CREATE ACCOUNT</div>
-          <h2>Request access</h2>
+          <div className="eyebrow">{buyerOnly ? 'NEW BUYER ACCOUNT' : 'CREATE ACCOUNT'}</div>
+          <h2>{buyerOnly ? 'Create your buyer account' : 'Request access'}</h2>
+          {buyerOnly && <p>Order fabric at fixed prices and track every order. The factory approves new accounts.</p>}
 
           {done ? (
             <>
@@ -118,7 +119,7 @@ export function SignupPage({ onBack }: { onBack: () => void }) {
                   <span>Confirm password</span>
                   <input type="password" value={form.confirm} onChange={set('confirm')} required minLength={10} autoComplete="new-password" />
                 </label>
-                <label className="field field-wide">
+                {!buyerOnly && <label className="field field-wide">
                   <span>What is your job?</span>
                   <select value={form.requestedRole} onChange={set('requestedRole')} required>
                     <option value="">Choose your role</option>
@@ -128,7 +129,7 @@ export function SignupPage({ onBack }: { onBack: () => void }) {
                       </option>
                     ))}
                   </select>
-                </label>
+                </label>}
                 {isBuyer && (
                   <>
                     <label className="field">

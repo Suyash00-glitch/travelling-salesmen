@@ -41,7 +41,7 @@ test.describe('Workspace Navigation & System Modals', () => {
     const modal = page.locator('.dialog-content');
     await expect(modal).toBeVisible();
     await expect(modal).toContainText('Notifications');
-    await expect(modal).toContainText('What happened, and what is waiting for you.');
+    await expect(modal).toContainText(/unread|up to date/);
 
     // Close modal
     await page.keyboard.press('Escape');
@@ -57,11 +57,9 @@ test.describe('Workspace Navigation & System Modals', () => {
 
     const modal = page.locator('.dialog-content');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('Welcome to LoomOS');
-    await expect(modal).toContainText('Receive & reserve yarn');
-    await expect(modal).toContainText('Plan and record production');
-    await expect(modal).toContainText('Inspect and trace fabric rolls');
-    await expect(modal).toContainText('Verify dispatch and track payments');
+    await expect(modal).toContainText('How LoomOS works');
+    await expect(modal).toContainText('assigns a machine and operator');
+    await expect(modal).toContainText('Dispatch');
 
     // Close modal
     await page.keyboard.press('Escape');

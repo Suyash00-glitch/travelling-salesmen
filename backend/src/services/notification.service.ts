@@ -5,9 +5,9 @@ import { db, type Tx } from '@loomos/db';
 
 // Floor team responsible for each production stage.
 export const stageTeams: Record<string, string[]> = {
-  SPINNING: ['SPINNING_OPERATOR', 'SHIFT_SUPERVISOR'],
-  WEAVING: ['WEAVING_OPERATOR', 'OPERATOR', 'SHIFT_SUPERVISOR'],
-  DYEING: ['DYEING_OPERATOR', 'SHIFT_SUPERVISOR'],
+  SPINNING: ['SPINNING_OPERATOR'],
+  WEAVING: ['WEAVING_OPERATOR'],
+  DYEING: ['DYEING_OPERATOR'],
   QUALITY: ['QUALITY_INSPECTOR'],
   DISPATCH: ['DISPATCH_MANAGER'],
 };

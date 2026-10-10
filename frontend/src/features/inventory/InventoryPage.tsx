@@ -10,6 +10,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table';
 import type { YarnSummary, PageResponse } from '@loomos/shared';
 import { useData, useLookups } from '../../hooks/useFactory';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
@@ -30,7 +31,10 @@ export function InventoryPage() {
   const query = useData<PageResponse<YarnSummary>>('/inventory?pageSize=100');
   const lookups = useLookups();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('All materials');
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState(params.get('filter') === 'low' ? 'Low stock' : 'All materials');
+  const materials = useData<{ material: string; specification: string; lots: number; onHand: string; reserved: string; available: string; consumed: string; threshold: string; low: boolean }[]>('/inventory/materials');
+  const purchases = useData<{ data: { status: string }[] }>('/purchases?pageSize=100');
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [history, setHistory] = useState<YarnSummary | null>(null);
 
@@ -252,7 +256,21 @@ export function InventoryPage() {
       </div>
 
 
-      <Panel>
+      <Panel title="Stock by material" subtitle="Total, reserved for batches, free to use, and used so far">
+        <DataTable
+          data={materials.data ?? []}
+          columns={[
+            { accessorKey: 'material', header: 'Material', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.material}</strong><span>{row.original.specification} · {row.original.lots} lot{row.original.lots === 1 ? '' : 's'}</span></div> },
+            { accessorKey: 'onHand', header: 'Total in store', cell: ({ row }) => `${number(row.original.onHand)} kg` },
+            { accessorKey: 'reserved', header: 'Reserved', cell: ({ row }) => `${number(row.original.reserved)} kg` },
+            { accessorKey: 'available', header: 'Available', cell: ({ row }) => <strong>{number(row.original.available)} kg</strong> },
+            { accessorKey: 'consumed', header: 'Used in production', cell: ({ row }) => `${number(row.original.consumed)} kg` },
+            { id: 'state', header: 'Stock level', cell: ({ row }) => row.original.low ? <Badge value="REJECTED">Low · reorder</Badge> : <Badge value="PASSED">OK</Badge> },
+          ]}
+        />
+      </Panel>
+
+      <Panel className="mt-5" title="Yarn lots" subtitle={`${purchases.data?.data.filter((p) => ['ORDERED', 'PARTIAL'].includes(p.status)).length ?? 0} purchase orders still to arrive`}>
         <div className="table-toolbar">
           <div className="tabs">
             {['All materials', 'Low stock'].map((t) => (
@@ -293,9 +311,10 @@ export function InventoryPage() {
             setSpec({
               title: 'Adjust or return stock',
               description:
-                'Positive quantities add returned yarn. Negative quantities correct stock. A reason is required.',
+                'Returned yarn adds to stock. Damaged yarn is removed. A reason is always required.',
               path: `/inventory/${lotToAdjust.id}/adjust`,
               fields: [
+                { name: 'kind', label: 'Type', type: 'select', value: 'RETURN', options: [{ value: 'RETURN', label: 'Returned to store (+)' }, { value: 'DAMAGED', label: 'Damaged / written off (−)' }, { value: 'ADJUSTMENT', label: 'Stock count correction (±)' }] },
                 {
                   name: 'quantity',
                   label: 'Quantity adjustment (kg)',

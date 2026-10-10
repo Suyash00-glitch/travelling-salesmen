@@ -12,7 +12,7 @@ import {
   type OrderSummary,
   type PageResponse,
 } from '@loomos/shared';
-import { useData, useLookups } from '../../hooks/useFactory';
+import { useData, useLookups, useDebouncedValue } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
@@ -25,14 +25,14 @@ import {
   cancelBatchForm,
   cancelReworkForm,
   issueForm,
-  reassignForm,
+  assignForm,
   replacementForm,
   resolveIssueForm,
   reworkForm,
   standaloneBatchForm,
 } from './productionForms';
 
-const filterNames = ['buyerId', 'orderId', 'status', 'department', 'machineId', 'purpose', 'rework', 'from', 'to'];
+const filterNames = ['buyerId', 'status', 'department', 'machineId', 'workerId', 'orderId', 'purpose', 'rework', 'from', 'to'];
 
 const dateTime = (value: string) =>
   new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }).format(new Date(value));
@@ -44,14 +44,15 @@ export function BatchesPage() {
   const lookups = useLookups();
   const filters = useFilters(filterNames);
   const [search, setSearch] = useState('');
+  const searchTerm = useDebouncedValue(search.trim());
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [params, setParams] = useSearchParams();
   const openId = params.get('open');
 
-  const path = `/production/batches?pageSize=100${filters.query ? `&${filters.query}` : ''}${search ? `&search=${encodeURIComponent(search)}` : ''}`;
+  const path = `/production/batches?pageSize=100${filters.query ? `&${filters.query}` : ''}${searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''}`;
   const query = useData<PageResponse<BatchSummary>>(path);
   const orders = useData<PageResponse<OrderSummary>>('/orders?pageSize=100', hasPermission(user, 'orders', 'view'));
-  const canManage = hasPermission(user, 'production', 'manage');
+  const canCreate = hasPermission(user, 'production', 'create');
 
   const setOpen = (id: string | null) => {
     const next = new URLSearchParams(params);
@@ -65,6 +66,7 @@ export function BatchesPage() {
     { name: 'status', label: 'Status', options: batchStatusGroups.map((s) => ({ value: s, label: label(s) })) },
     { name: 'department', label: 'Department', options: departments.map((d) => ({ value: d, label: label(d) })) },
     { name: 'machineId', label: 'Machine', options: (lookups.data?.machines ?? []).map((m) => ({ value: m.id, label: `${String(m.code)} · ${m.name}` })) },
+    { name: 'workerId', label: 'Operator', options: (lookups.data?.workers ?? []).map((w) => ({ value: w.id, label: w.name })) },
     { name: 'orderId', label: 'Order', options: (orders.data?.data ?? []).map((o) => ({ value: o.id, label: `${o.number} · ${o.buyer.name}` })) },
     {
       name: 'purpose',
@@ -161,8 +163,8 @@ export function BatchesPage() {
             })))
           }
         />
-        {canManage && (
-          <Button onClick={() => setSpec(standaloneBatchForm(lookups.data))}>
+        {canCreate && (
+          <Button disabled={!lookups.data} onClick={() => setSpec(standaloneBatchForm(lookups.data))}>
             <Plus size={16} />
             New batch
           </Button>
@@ -204,8 +206,12 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
   const lookups = useLookups();
   const navigate = useNavigate();
   const query = useData<BatchDetail>(`/production/batches/${id}`);
-  const canManage = hasPermission(user, 'production', 'manage');
-  const canUpdate = hasPermission(user, 'production', 'update') || hasPermission(user, 'quality', 'update');
+  // Who may do what here mirrors the server: plan = assign / resolve / cancel rework,
+  // create = replacement and cancel, report = problems, rework = manager or quality.
+  const canPlan = hasPermission(user, 'production', 'approve');
+  const canCreate = hasPermission(user, 'production', 'create');
+  const canReport = hasPermission(user, 'production', 'update') || hasPermission(user, 'quality', 'manage');
+  const canRework = canPlan || hasPermission(user, 'quality', 'manage');
 
   const b = query.data;
   const open = b && !['COMPLETED', 'CANCELLED'].includes(b.status);
@@ -242,9 +248,9 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
                 </header>
                 <small>{number(j.output)} / {number(j.target)} m</small>
                 <small>{j.machineCode ?? 'Machine not set'} · {j.workerName ?? 'No worker'}</small>
-                {canManage && !['COMPLETED', 'CANCELLED'].includes(j.status) && (
-                  <Button size="sm" variant="outline" onClick={() => onAction(reassignForm(j, b.number, lookups.data))}>
-                    Reassign
+                {canPlan && ['READY', 'ASSIGNED', 'PAUSED', 'BLOCKED'].includes(j.status) && (
+                  <Button size="sm" variant="outline" onClick={() => onAction(assignForm(j, b.number, lookups.data))}>
+                    {j.status === 'READY' ? 'Assign' : 'Move'}
                   </Button>
                 )}
               </div>
@@ -252,12 +258,12 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
           </div>
 
           <div className="detail-actions">
-            {canUpdate && b.status !== 'CANCELLED' && (
+            {canReport && b.status !== 'CANCELLED' && (
               <Button size="sm" variant="outline" onClick={() => onAction(issueForm(b, b.jobs.find((j) => j.status === 'IN_PROGRESS')?.id))}>
                 <AlertTriangle size={14} /> Report problem
               </Button>
             )}
-            {canUpdate && b.status !== 'CANCELLED' && !inRework && reachedStages.length > 0 && (
+            {canRework && b.status !== 'CANCELLED' && !inRework && reachedStages.length > 0 && (
               <Button
                 size="sm"
                 variant="outline"
@@ -280,12 +286,12 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
                 <RotateCcw size={14} /> Send back for rework
               </Button>
             )}
-            {canManage && (
+            {canCreate && (
               <Button size="sm" variant="outline" onClick={() => onAction(replacementForm(b))}>
                 <Copy size={14} /> Replacement batch
               </Button>
             )}
-            {canManage && open && (
+            {canCreate && open && (
               <Button size="sm" variant="outline" onClick={() => onAction(cancelBatchForm(b))}>
                 <Ban size={14} /> Cancel batch
               </Button>
@@ -311,7 +317,7 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
                       <Badge value={r.status} />
                       <span className="record-meta">Raised by {r.raisedBy || '—'} · {dateTime(r.createdAt)}</span>
                       {r.completedAt && <span className="record-meta">Closed by {r.resolvedBy} · {dateTime(r.completedAt)}</span>}
-                      {canManage && r.status === 'OPEN' && r.returnStage && (
+                      {canPlan && r.status === 'OPEN' && r.returnStage && (
                         <Button size="sm" variant="outline" onClick={() => onAction(cancelReworkForm(r))}>Cancel rework</Button>
                       )}
                     </div>
@@ -338,7 +344,7 @@ function BatchDetailModal({ id, onClose, onAction }: { id: string; onClose: () =
                       <Badge value={i.status} />
                       <span className="record-meta">{i.reportedBy} · {dateTime(i.createdAt)}</span>
                       {i.resolvedAt && <span className="record-meta">Resolved by {i.resolvedBy} · {dateTime(i.resolvedAt)}</span>}
-                      {canUpdate && i.status === 'OPEN' && (
+                      {canPlan && i.status === 'OPEN' && (
                         <Button size="sm" variant="outline" onClick={() => onAction(resolveIssueForm(i))}>Mark resolved</Button>
                       )}
                     </div>

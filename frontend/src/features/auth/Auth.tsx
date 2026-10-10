@@ -28,7 +28,8 @@ export function useAuth(): AuthContextValue {
 export function AuthGate({ children }: { children: ReactNode }) {
   const client = useQueryClient();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [signingUp, setSigningUp] = useState(false);
+  // '/buyer/signup' is the public buyer entry point; staff can also request an account.
+  const [signup, setSignup] = useState<'none' | 'staff' | 'buyer'>(window.location.pathname === '/buyer/signup' ? 'buyer' : 'none');
 
   const session = useQuery({
     queryKey: ['session'],
@@ -45,11 +46,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session.data) {
-    if (signingUp) return <SignupPage onBack={() => setSigningUp(false)} />;
+    if (signup !== 'none') {
+      return <SignupPage buyerOnly={signup === 'buyer'} onBack={() => { window.history.replaceState({}, '', '/'); setSignup('none'); }} />;
+    }
     return (
       <LoginPage
         onSuccess={() => void client.invalidateQueries({ queryKey: ['session'] })}
-        onSignup={() => setSigningUp(true)}
+        onSignup={() => setSignup('staff')}
+        onBuyerSignup={() => { window.history.replaceState({}, '', '/buyer/signup'); setSignup('buyer'); }}
       />
     );
   }

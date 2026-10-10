@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { ensure, audit, type Actor } from '../lib/domain.js';
+import { ensure, audit } from '../lib/domain.js';
 import { page, id, write, empty, reason } from '../lib/route-helpers.js';
 import {
   orderSummaries,
@@ -13,10 +13,6 @@ import {
   rejectOrder,
   materialPlan,
 } from '../services/order.service.js';
-
-// Accepting, planning and editing orders is for the office team, not buyers or the floor.
-const ensureCanManage = (actor: Actor) =>
-  ensure(contracts.hasPermission(actor, 'orders', 'approve'), 'Only managers can review and plan orders.', 403);
 
 export const ordersRouter = Router();
 
@@ -30,6 +26,9 @@ ordersRouter.get('/', authorize('orders'), async (req, res) => {
   }
   if (req.query.status) {
     data = data.filter((o) => o.status === req.query.status);
+  }
+  if (req.query.buyerId) {
+    data = data.filter((o) => o.buyer.id === req.query.buyerId);
   }
   res.json(page(req, data));
 });
@@ -54,7 +53,7 @@ ordersRouter.get('/:id/materials', authorize('inventory'), async (req, res) => {
 });
 
 // Create new sales order. Buyer requests wait for review; office orders start right away.
-write(ordersRouter, '/', 'orders', contracts.orderSchema, async (tx, input, actor) => {
+write(ordersRouter, '/', 'orders:create', contracts.orderSchema, async (tx, input, actor) => {
   if (actor.role === 'BUYER') {
     ensure(actor.buyerId, 'Your login is not linked to a buyer account.', 403);
     return createOrder(tx, { ...input, buyerId: actor.buyerId }, actor, 'PENDING_REVIEW');
@@ -69,22 +68,13 @@ write(ordersRouter, '/', 'orders', contracts.orderSchema, async (tx, input, acto
 });
 
 // Accept a buyer request: confirms it and sends it to spinning
-write(ordersRouter, '/:id/accept', 'orders', empty, (tx, _input, actor, req) => {
-  ensureCanManage(actor);
-  return acceptOrder(tx, id(req), actor);
-});
+write(ordersRouter, '/:id/accept', 'orders:approve', empty, (tx, _input, actor, req) => acceptOrder(tx, id(req), actor));
 
 // Decline a buyer request with a reason the buyer can see
-write(ordersRouter, '/:id/reject', 'orders', reason, (tx, input, actor, req) => {
-  ensureCanManage(actor);
-  return rejectOrder(tx, id(req), input.reason, actor);
-});
+write(ordersRouter, '/:id/reject', 'orders:approve', reason, (tx, input, actor, req) => rejectOrder(tx, id(req), input.reason, actor));
 
 // Plan production jobs for order
-write(ordersRouter, '/:id/plan', 'orders', empty, (tx, _input, actor, req) => {
-  ensureCanManage(actor);
-  return planOrder(tx, id(req), actor);
-});
+write(ordersRouter, '/:id/plan', 'orders:approve', empty, (tx, _input, actor, req) => planOrder(tx, id(req), actor));
 
 // Edit order priority, deadline, instructions
 const editOrderSchema = z.object({
@@ -93,8 +83,7 @@ const editOrderSchema = z.object({
   instructions: z.string().max(2000),
 });
 
-write(ordersRouter, '/:id/edit', 'orders', editOrderSchema, async (tx, input, actor, req) => {
-  ensureCanManage(actor);
+write(ordersRouter, '/:id/edit', 'orders:approve', editOrderSchema, async (tx, input, actor, req) => {
   const order = await tx.salesOrder.findUnique({ where: { id: id(req) } });
   ensure(order && !['COMPLETED', 'CANCELLED'].includes(order.status), 'Order is closed or missing.');
   const updated = await tx.salesOrder.update({

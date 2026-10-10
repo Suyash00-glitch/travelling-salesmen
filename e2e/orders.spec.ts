@@ -80,7 +80,8 @@ test.describe('Orders & Order Details Journey', () => {
 
     const modal = page.locator('.dialog-content');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('A new order starts here');
+    await expect(modal).toContainText('New customer order');
+    await expect(modal).toContainText('Prices are fixed per material');
 
     // Close/Cancel modal
     await modal.getByRole('button', { name: /Cancel/i }).click();

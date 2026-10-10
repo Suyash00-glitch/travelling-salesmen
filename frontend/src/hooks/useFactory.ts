@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { AppNotification, Lookups, Notice } from '@loomos/shared';
+import type { AppNotification, Lookups } from '@loomos/shared';
 import { toast } from 'sonner';
 import { api } from '../services/api';
 
@@ -58,19 +58,14 @@ export function useLiveUpdates() {
   return connected;
 }
 
-// Pops a toast when new work lands in this user's inbox (e.g. "ready for weaving").
-export function useInboxToasts(notices: Notice[] | undefined) {
-  const seen = useRef<Set<string> | null>(null);
-
+// Waits until the user stops typing before a value is used (keeps search from firing on every key).
+export function useDebouncedValue<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
   useEffect(() => {
-    if (!notices) return;
-    if (seen.current) {
-      for (const n of notices) {
-        if (!seen.current.has(n.id)) toast.info(n.title, { description: n.description });
-      }
-    }
-    seen.current = new Set(notices.map((n) => n.id));
-  }, [notices]);
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
 }
 
 // Stored notifications for the signed-in user. Simple polling every 30 seconds:

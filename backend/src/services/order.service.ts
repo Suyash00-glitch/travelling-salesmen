@@ -5,8 +5,14 @@ import { notify, managers, stageTeams } from './notification.service.js';
 
 export async function createOrder(tx: Tx, input: OrderInput, actor: Actor, status = 'CONFIRMED') {
   ensure(await tx.buyer.findUnique({ where: { id: input.buyerId } }), 'Buyer not found.', 404);
+
+  // The price always comes from the material's fixed price, never from the request.
+  const items = [];
   for (const item of input.items) {
-    ensure(await tx.recipe.findUnique({ where: { id: item.recipeId } }), 'Recipe not found.', 404);
+    const recipe = await tx.recipe.findUnique({ where: { id: item.recipeId } });
+    ensure(recipe?.active, 'This material is not available to order.', 404);
+    ensure(recipe.pricePerMetre.gt(0), `${recipe.name} has no price yet. Ask an administrator to set it.`);
+    items.push({ recipeId: recipe.id, fabric: recipe.name, color: item.color, quantity: item.quantity, price: recipe.pricePerMetre });
   }
   const order = await tx.salesOrder.create({
     data: {
@@ -16,7 +22,7 @@ export async function createOrder(tx: Tx, input: OrderInput, actor: Actor, statu
       priority: input.priority,
       instructions: input.instructions,
       status,
-      items: { create: input.items },
+      items: { create: items },
     },
     include: { items: true, buyer: true },
   });
