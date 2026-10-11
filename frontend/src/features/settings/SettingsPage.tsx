@@ -7,6 +7,7 @@ import { PageHeader, Panel, Badge } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
 import { label, money } from '../../lib/utils';
 import { UserManagementTab } from './UserManagementTab';
+import { buyerForm, materialForm } from '../forms/quickForms';
 import { RoleManagementTab } from './RoleManagementTab';
 import { FactoryDepartmentTab } from './FactoryDepartmentTab';
 import { AuditLogTab } from './AuditLogTab';
@@ -25,73 +26,8 @@ export function SettingsPage() {
     'Audit trail',
   ];
 
-  const openRecipeModal = () => {
-    setSpec({
-      title: 'Create fabric recipe',
-      path: '/recipes',
-      fields: [
-        { name: 'name', label: 'Material / fabric name' },
-        { name: 'pricePerMetre', label: 'Selling price per metre (₹)', type: 'number', min: 0.01 },
-        { name: 'material', label: 'Material type' },
-        { name: 'specification', label: 'Yarn specification' },
-        {
-          name: 'kgPerMetre',
-          label: 'Yarn kg per metre',
-          type: 'number',
-          min: 0.001,
-          value: 0.2,
-        },
-        {
-          name: 'wastePercent',
-          label: 'Planned waste (%)',
-          type: 'number',
-          min: 0,
-          max: 100,
-          value: 3,
-        },
-        {
-          name: 'overheadPerMetre',
-          label: 'Overhead / metre (₹)',
-          type: 'number',
-          min: 0,
-          value: 8,
-        },
-        {
-          name: 'route',
-          label: 'Manufacturing route',
-          type: 'select',
-          options: [
-            { value: 'WEAVING,DYEING', label: 'Weaving → Dyeing' },
-            {
-              value: 'SPINNING,WEAVING,DYEING',
-              label: 'Spinning → Weaving → Dyeing',
-            },
-            { value: 'WEAVING', label: 'Weaving only' },
-            {
-              value: 'SPINNING,WEAVING',
-              label: 'Spinning → Weaving',
-            },
-          ],
-        },
-      ],
-      transform: (d) => ({
-        ...d,
-        route: (d.route as string).split(','),
-      }),
-    });
-  };
-
-  const openBuyerModal = () => {
-    setSpec({
-      title: 'Add a buyer',
-      path: '/buyers',
-      fields: [
-        { name: 'name', label: 'Company name' },
-        { name: 'email', label: 'Email', type: 'email' },
-        { name: 'city', label: 'City' },
-      ],
-    });
-  };
+  const openRecipeModal = () => setSpec(materialForm());
+  const openBuyerModal = () => setSpec(buyerForm());
 
   return (
     <>

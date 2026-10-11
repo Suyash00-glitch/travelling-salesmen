@@ -1,6 +1,7 @@
 import { db, Prisma, type Tx } from '@loomos/db';
 import type { ReceiptInput } from '@loomos/shared';
-import { audit, code, D, ensure, sum, type Actor } from '../lib/domain.js';
+import { audit, businessDay, code, D, ensure, sum, type Actor } from '../lib/domain.js';
+import { notify } from './notification.service.js';
 
 // ==================== STOCK SAFETY ====================
 // Every change to a lot's quantities goes through these helpers. They update the row with a
@@ -17,6 +18,7 @@ export async function reserveFromLot(tx: Tx, lotId: string, productionId: string
     create: { lotId, productionId, quantity: qty },
     update: { quantity: { increment: qty }, released: false },
   });
+  await warnIfLow(tx, lotId);
 }
 
 // Take `qty` kg out of a lot for production. The reserved part of it is released at the same time.
@@ -32,6 +34,28 @@ export async function consumeFromLot(tx: Tx, lotId: string, productionId: string
   if (reservation && fromReservation.gt(0)) {
     await tx.stockReservation.update({ where: { id: reservation.id }, data: { consumed: { increment: fromReservation } } });
   }
+  await warnIfLow(tx, lotId);
+}
+
+// Tell the store before a material runs out: once a day per material, when free stock drops below
+// the reorder level of its lots.
+export async function warnIfLow(tx: Tx, lotId: string) {
+  const lot = await tx.yarnLot.findUnique({ where: { id: lotId } });
+  if (!lot) return;
+  const lots = await tx.yarnLot.findMany({ where: { material: lot.material, specification: lot.specification }, orderBy: { createdAt: 'desc' } });
+  const free = sum(lots.map((l) => l.onHand.minus(l.reserved)));
+  const threshold = lots[0]?.threshold ?? D(0); // the reorder level set on the newest receipt
+  if (free.gte(threshold)) return;
+  const title = `${lot.material} (${lot.specification}) is running low`;
+  const already = await tx.notification.findFirst({ where: { title, createdAt: { gte: businessDay() } } });
+  if (already) return;
+  await notify(tx, {
+    roles: ['INVENTORY_MANAGER', 'PROCUREMENT_MANAGER'],
+    title,
+    message: `${free.toFixed(0)} kg free, reorder level ${threshold.toFixed(0)} kg. Raise a purchase order.`,
+    category: 'INVENTORY',
+    link: '/inventory?filter=low',
+  });
 }
 
 // Give back whatever a batch reserved but never used (batch finished or cancelled).
@@ -49,7 +73,7 @@ export async function releaseReservations(tx: Tx, productionId: string) {
 // Stock grouped by material and specification: what the inventory page and dashboards show.
 export async function materialSummary() {
   const [lots, consumption] = await Promise.all([
-    db.yarnLot.findMany(),
+    db.yarnLot.findMany({ orderBy: { createdAt: 'asc' } }),
     db.materialConsumption.groupBy({ by: ['lotId'], _sum: { quantity: true } }),
   ]);
   const consumedByLot = new Map(consumption.map((c) => [c.lotId, c._sum.quantity ?? D(0)]));
@@ -61,7 +85,7 @@ export async function materialSummary() {
     g.onHand = g.onHand.plus(lot.onHand);
     g.reserved = g.reserved.plus(lot.reserved);
     g.consumed = g.consumed.plus(consumedByLot.get(lot.id) ?? 0);
-    g.threshold = g.threshold.plus(lot.threshold);
+    g.threshold = lot.threshold; // lots are oldest first, so this ends as the newest lot's reorder level
     groups.set(key, g);
   }
   return [...groups.values()].map((g) => ({
@@ -73,6 +97,19 @@ export async function materialSummary() {
 
 export async function receiveYarn(tx: Tx, input: ReceiptInput, actor: Actor) {
   ensure(await tx.supplier.findUnique({ where: { id: input.supplierId } }), 'Supplier not found.', 404);
+  ensure(!(await tx.goodsReceipt.findUnique({ where: { reference: input.reference } })), 'This gate pass / challan number has already been received.');
+  // Yarn bought for a particular order must be the yarn that order's fabric is made from.
+  let order: { id: string; number: string } | null = null;
+  if (input.orderId) {
+    const found = await tx.salesOrder.findUnique({ where: { id: input.orderId }, include: { items: { include: { recipe: true } } } });
+    ensure(found, 'Order not found.', 404);
+    ensure(!['COMPLETED', 'CANCELLED'].includes(found.status), `${found.number} is already closed.`);
+    ensure(
+      found.items.some((i) => i.recipe.material === input.material && i.recipe.specification === input.specification),
+      `${found.number} does not use ${input.material} ${input.specification}.`,
+    );
+    order = found;
+  }
   if (input.purchaseId) {
     const po = await tx.purchaseOrder.findUnique({ where: { id: input.purchaseId }, include: { receipts: true } });
     ensure(po, 'Purchase order not found.', 404);
@@ -99,6 +136,7 @@ export async function receiveYarn(tx: Tx, input: ReceiptInput, actor: Actor) {
       onHand: input.quantity,
       costPerKg: input.costPerKg,
       threshold: input.threshold,
+      orderId: order?.id ?? null,
     },
   });
 
@@ -108,14 +146,26 @@ export async function receiveYarn(tx: Tx, input: ReceiptInput, actor: Actor) {
       purchaseId: input.purchaseId,
       lotId: lot.id,
       quantity: input.quantity,
-      bill: { create: { total: D(input.quantity).mul(input.costPerKg), dueAt: new Date(Date.now() + 30 * 86400000) } },
+      // The supplier's bill for this yarn, payable in 30 days.
+      bill: {
+        create: {
+          supplierId: input.supplierId,
+          number: input.reference,
+          category: 'YARN',
+          description: `${input.quantity} kg ${input.material} ${input.specification} · ${input.color}`,
+          total: D(input.quantity).mul(input.costPerKg),
+          dueAt: new Date(Date.now() + 30 * 86400000),
+          recordedBy: actor.name,
+        },
+      },
     },
   });
 
   await tx.stockMovement.create({
     data: { lotId: lot.id, kind: 'RECEIPT', quantity: input.quantity, reason: 'Supplier goods receipt', source: receipt.id },
   });
-  await audit(tx, actor, 'inventory.received', lot.id, `${lot.code} · ${input.quantity} kg ${input.material} received`);
+  await audit(tx, actor, 'inventory.received', lot.id, `${lot.code} · ${input.quantity} kg ${input.material} ${input.color} received${order ? ` for ${order.number}` : ''}`);
+  if (order) await audit(tx, actor, 'inventory.received', order.id, `${input.quantity} kg ${input.material} received for this order (${lot.code})`);
   return lot;
 }
 
@@ -149,6 +199,7 @@ export async function adjustStock(tx: Tx, id: string, quantity: number, reason: 
   await tx.stockMovement.create({
     data: { lotId: id, kind: kind ?? (quantity > 0 ? 'RETURN' : 'ADJUSTMENT'), quantity, reason, source: code('ADJ') },
   });
+  if (quantity < 0) await warnIfLow(tx, id);
   await audit(tx, actor, 'inventory.adjusted', id, reason);
   return result;
 }

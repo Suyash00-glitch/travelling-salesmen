@@ -91,15 +91,15 @@ test.describe('Factory operations', () => {
       await page.locator('.dialog-content').getByRole('button', { name: 'Mark delivered' }).click();
       await expect(page.locator('.dialog-content')).not.toBeVisible();
     }
-    await page.getByRole('button', { name: /^Delivered/ }).click();
+    await page.locator('.tabs button, .segmented-control button', { hasText: /^Delivered/ }).first().click();
     await expect(page.locator('tbody tr').first()).toContainText('Delivered', { timeout: 15000 });
   });
 
   test('accounts: invoices with outstanding amounts, record a payment, open claims', async ({ page }) => {
     await loginAs(page, 'accounts@loomos.demo');
     await page.goto('/finance');
-    await expect(page.locator('.kpi', { hasText: 'Outstanding' })).toBeVisible();
-    await expect(page.locator('.kpi', { hasText: 'Overdue' })).toBeVisible();
+    await expect(page.locator('.kpi', { hasText: 'To collect' })).toContainText('overdue');
+    await expect(page.locator('.kpi', { hasText: 'Bills to pay' })).toBeVisible();
     const row = page.locator('tbody tr', { hasText: 'Record payment' }).first();
     await row.getByRole('button', { name: 'Record payment' }).click();
     const form = page.locator('.dialog-content');

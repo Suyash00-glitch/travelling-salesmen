@@ -14,6 +14,7 @@ import {
   Kpi,
 } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
+import { purchaseForm, supplierForm } from '../forms/quickForms';
 import { number, money, date, today } from '../../lib/utils';
 
 interface Purchase {
@@ -46,38 +47,8 @@ export function ProcurementPage() {
 
   const purchases = query.data?.data ?? [];
 
-  const openAddSupplier = () => {
-    setSpec({
-      title: 'Add supplier',
-      path: '/suppliers',
-      fields: [
-        { name: 'name', label: 'Supplier name' },
-        { name: 'email', label: 'Email', type: 'email' },
-        { name: 'city', label: 'City' },
-      ],
-    });
-  };
-
-  const openNewPurchase = () => {
-    setSpec({
-      title: 'Create purchase order',
-      path: '/purchases',
-      fields: [
-        {
-          name: 'supplierId',
-          label: 'Supplier',
-          type: 'select',
-          options: lookups.data?.suppliers.map((s) => ({ value: s.id, label: s.name })),
-        },
-        { name: 'material', label: 'Material', value: 'Cotton yarn' },
-        { name: 'color', label: 'Colour', value: 'Natural' },
-        { name: 'specification', label: 'Specification', value: '40s combed' },
-        { name: 'quantity', label: 'Quantity (kg)', type: 'number', min: 0.001 },
-        { name: 'costPerKg', label: 'Unit cost (₹/kg)', type: 'number', min: 0.01 },
-        { name: 'expectedAt', label: 'Expected delivery', type: 'date', value: today() },
-      ],
-    });
-  };
+  const openAddSupplier = () => setSpec(supplierForm());
+  const openNewPurchase = () => setSpec(purchaseForm(lookups.data));
 
   const openReceiveForm = (p: Purchase) => {
     const remaining =

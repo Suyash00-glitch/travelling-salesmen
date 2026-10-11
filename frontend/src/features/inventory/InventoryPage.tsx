@@ -8,7 +8,8 @@ import {
   History,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { YarnSummary, PageResponse } from '@loomos/shared';
+import type { YarnSummary, PageResponse, OrderSummary } from '@loomos/shared';
+import { receiptForm } from '../forms/quickForms';
 import { useData, useLookups } from '../../hooks/useFactory';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
@@ -35,6 +36,7 @@ export function InventoryPage() {
   const [filter, setFilter] = useState(params.get('filter') === 'low' ? 'Low stock' : 'All materials');
   const materials = useData<{ material: string; specification: string; lots: number; onHand: string; reserved: string; available: string; consumed: string; threshold: string; low: boolean }[]>('/inventory/materials');
   const purchases = useData<{ data: { status: string }[] }>('/purchases?pageSize=100');
+  const orders = useData<PageResponse<OrderSummary>>('/orders?pageSize=100');
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [history, setHistory] = useState<YarnSummary | null>(null);
 
@@ -50,52 +52,7 @@ export function InventoryPage() {
       (filter !== 'Low stock' || Number(l.available) < Number(l.threshold))
   );
 
-  const openReceiveYarn = () => {
-    setSpec({
-      title: 'Receive yarn',
-      description: 'Create a traceable yarn lot, stock receipt and supplier bill together.',
-      path: '/inventory/receipts',
-      fields: [
-        {
-          name: 'supplierId',
-          label: 'Supplier',
-          type: 'select',
-          options: lookups.data?.suppliers.map((s) => ({ value: s.id, label: s.name })),
-        },
-        {
-          name: 'reference',
-          label: 'Receipt reference',
-          value: `GRN-${Date.now().toString().slice(-6)}`,
-        },
-        {
-          name: 'material',
-          label: 'Material',
-          type: 'select',
-          options: [...new Set(lookups.data?.recipes.map((r) => r.material))].map((v) => ({
-            value: v,
-            label: v,
-          })),
-        },
-        {
-          name: 'specification',
-          label: 'Yarn count / specification',
-          type: 'select',
-          options: [...new Set(lookups.data?.recipes.map((r) => r.specification))].map(
-            (v) => ({ value: v, label: v })
-          ),
-        },
-        { name: 'color', label: 'Colour', value: 'Natural' },
-        { name: 'quantity', label: 'Received quantity (kg)', type: 'number', min: 0.001 },
-        { name: 'costPerKg', label: 'Cost / kg (₹)', type: 'number', min: 0.01 },
-        {
-          name: 'location',
-          label: 'Warehouse location',
-          value: 'Warehouse A · Rack 1',
-        },
-        { name: 'threshold', label: 'Low-stock threshold (kg)', type: 'number', value: 100 },
-      ],
-    });
-  };
+  const openReceiveYarn = () => setSpec(receiptForm(lookups.data, orders.data?.data ?? []));
 
   const handleExport = () => {
     exportCsv(

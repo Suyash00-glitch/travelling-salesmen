@@ -69,6 +69,19 @@ export function OrdersPage() {
         </div>),
         },
         {
+            id: 'yarn',
+            header: 'Yarn',
+            cell: ({ row }) => {
+                const y = row.original.yarn;
+                if (!y) return <span className="muted">—</span>;
+                return y.status === 'SHORT'
+                    ? <div className="cell-stack"><Badge value="REJECTED">Short {number(y.shortKg)} kg</Badge><span>{y.material}</span></div>
+                    : y.status === 'IN_HAND'
+                        ? <Badge value="PASSED">Reserved / used</Badge>
+                        : <div className="cell-stack"><Badge value="PASSED">Enough in store</Badge><span>needs {number(y.neededKg)} kg</span></div>;
+            },
+        },
+        {
             accessorKey: 'deadline',
             header: 'Delivery date',
             cell: ({ row }) => (<div className="cell-stack">

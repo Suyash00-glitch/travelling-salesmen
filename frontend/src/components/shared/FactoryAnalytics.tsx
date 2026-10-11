@@ -1,49 +1,29 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import type { Analytics, Lookups } from '@loomos/shared';
 import { useData } from '../../hooks/useFactory';
 import { ErrorState, ExportButton, Loading, Panel } from './common';
 import { FilterBar, type FilterDef } from './FilterBar';
+import { BarList, Donut, axis, stageColors, status, tooltipStyle } from './Charts';
 import { exportCsv, label, number } from '../../lib/utils';
 
-// One colour per status, shared with the badges: green = done, blue = moving, amber = waiting,
-// purple = rework, red = problem, grey = not started.
-const statusColors: Record<string, string> = {
-  PASSED: '#087f6b', RUNNING: '#087f6b', COMPLETED: '#087f6b',
-  IN_PROGRESS: '#3567a3', DISPATCHED: '#3567a3',
-  PENDING: '#b7791f', READY: '#b7791f', IDLE: '#b7791f',
-  REWORK: '#7056a3', PAUSED: '#7056a3',
-  REJECTED: '#b83940', BREAKDOWN: '#b83940', BLOCKED: '#b83940', CANCELLED: '#b83940',
-  PLANNED: '#5b6b64',
-};
-const statusColor = (status: string) => statusColors[status] ?? '#5b6b64';
-
 // Factory analytics: every chart is built from real records by GET /analytics.
-// Colours were checked with the palette validator (lightness, chroma, colour-blind separation).
+// Part-of-whole uses donuts with labelled legends; rankings use labelled bars.
 
-// One fixed colour per production stage, used by every chart (colour follows the stage).
-const stageColors: Record<string, string> = { SPINNING: '#2f6cb8', WEAVING: '#bf8014', DYEING: '#7056a3' };
+// Batch status groups in the shared status colours.
+const statusTone: Record<string, string> = {
+  PENDING: status.neutral,
+  ONGOING: status.info,
+  REWORK: status.warning,
+  COMPLETED: status.good,
+  FAILED: status.critical,
+};
 // Ordered → produced → dispatched is a progression, so it uses one hue from light to dark.
-const progressRamp = ['#86a9d9', '#4a7fc8', '#1f4f8f'];
-// Batch status groups shown in the app's shared status colours.
-const statusTone: Record<string, string> = { PENDING: 'PENDING', ONGOING: 'IN_PROGRESS', REWORK: 'REWORK', COMPLETED: 'COMPLETED', FAILED: 'CANCELLED' };
-const BAR = 24; // bars never thicker than this
-const SURFACE = '#ffffff'; // gap colour between touching bars
-const axis = { fontSize: 12, fill: '#3b4049' };
-const grid = <CartesianGrid stroke="#e6ece8" vertical={false} />;
-const tooltipStyle = { borderRadius: 10, border: '1px solid #d9e3dd', fontSize: 12 };
+const progressRamp = ['#86b6ef', '#3987e5', '#184f95'];
+const BAR = 24;
+const grid = <CartesianGrid stroke="#eceef1" vertical={false} />;
 
 export function FactoryAnalytics({ lookups }: { lookups: Lookups | undefined }) {
   const navigate = useNavigate();
@@ -98,56 +78,66 @@ export function FactoryAnalytics({ lookups }: { lookups: Lookups | undefined }) 
       {a && (
         <div className="analytics-grid" style={{ marginTop: 16 }}>
           <Panel title="Daily production output" subtitle="Metres recorded per day, by department" className="span-2">
-            <div className="chart-box">
+            <div className="chart-box" style={{ height: 260 }}>
               <ResponsiveContainer>
-                <BarChart data={a.dailyOutput} barCategoryGap="25%">
+                <BarChart data={a.dailyOutput} barCategoryGap="25%" margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
                   {grid}
-                  <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: '#d9e3dd' }} />
+                  <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: '#d9dde2' }} interval="preserveStartEnd" minTickGap={12} />
                   <YAxis tick={axis} tickLine={false} axisLine={false} width={48} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [`${number(Number(v))} m`, label(String(n))]} cursor={{ fill: '#eef3f0' }} />
-                  <Legend itemSorter={null} formatter={(v) => <span style={{ color: '#2f443a' }}>{label(String(v))}</span>} iconType="square" />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [`${number(Number(v))} m`, label(String(n))]} cursor={{ fill: '#f3f4f6' }} />
+                  <Legend formatter={(v) => <span style={{ color: '#1f2227' }}>{label(String(v))}</span>} iconType="square" />
                   {stages.map((s, i) => (
-                    <Bar key={s} dataKey={s} stackId="out" fill={stageColors[s]} stroke={SURFACE} strokeWidth={2} maxBarSize={BAR} radius={i === stages.length - 1 ? [4, 4, 0, 0] : 0} />
+                    <Bar key={s} dataKey={s} stackId="out" fill={stageColors[s]} stroke="#ffffff" strokeWidth={2} maxBarSize={BAR} radius={i === stages.length - 1 ? [4, 4, 0, 0] : 0} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Panel>
 
-          <Panel title="Output by department" subtitle="Total metres and waste in the period">
-            <div className="chart-box">
-              <ResponsiveContainer>
-                <BarChart data={a.departmentOutput.map((d) => ({ ...d, name: label(d.stage) }))} layout="vertical" margin={{ right: 56 }}>
-                  <CartesianGrid stroke="#e6ece8" horizontal={false} />
-                  <XAxis type="number" tick={axis} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="name" tick={axis} tickLine={false} axisLine={false} width={72} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item) => [`${number(Number(v))} m · waste ${number(item.payload.waste)} m`, 'Output']} cursor={{ fill: '#eef3f0' }} />
-                  <Bar dataKey="output" maxBarSize={BAR} radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#2f443a', fontSize: 12, formatter: (v: unknown) => `${number(Number(v))} m` }}>
-                    {a.departmentOutput.map((d) => <Cell key={d.stage} fill={stageColors[d.stage]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <Panel title="Output by department" subtitle="Share of all metres made in the period">
+            <Donut
+              data={a.departmentOutput.map((d) => ({ name: label(d.stage), value: d.output, color: stageColors[d.stage] }))}
+              caption="metres"
+              format={(v) => `${number(v)} m`}
+              centre={number(a.departmentOutput.reduce((s, d) => s + d.output, 0))}
+            />
+            <p className="chart-note">
+              Waste: {a.departmentOutput.map((d) => `${label(d.stage)} ${number(d.waste)} m`).join(' · ')}
+            </p>
           </Panel>
 
-          <Panel title="Production status" subtitle="All batches right now · click a bar to see them">
-            <div className="chart-box">
-              <ResponsiveContainer>
-                <BarChart data={a.productionStatus.map((s) => ({ ...s, name: label(s.status) }))} layout="vertical" margin={{ right: 40 }}>
-                  <CartesianGrid stroke="#e6ece8" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="name" tick={axis} tickLine={false} axisLine={false} width={84} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v} batches`, 'Batches']} cursor={{ fill: '#eef3f0' }} />
-                  <Bar dataKey="count" maxBarSize={BAR} radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#2f443a', fontSize: 12 }} style={{ cursor: 'pointer' }}
-                    onClick={(_d, index) => navigate(`/batches?status=${a.productionStatus[index].status}`)}>
-                    {a.productionStatus.map((s) => <Cell key={s.status} fill={statusColor(statusTone[s.status])} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <Panel title="Quality results" subtitle={`Roll inspections in the period · ${a.quality.passRate}% passed`}>
+            <Donut
+              data={[
+                { name: 'Passed', value: a.quality.passed, color: status.good },
+                { name: 'Rework', value: a.quality.rework, color: status.warning },
+                { name: 'Rejected', value: a.quality.rejected, color: status.critical },
+              ]}
+              centre={`${a.quality.passRate}%`}
+              caption="pass rate"
+              onSelect={() => navigate('/quality')}
+            />
           </Panel>
 
-          <Panel title="Machine utilisation" subtitle="Reported run hours ÷ one 8-hour shift per day">
+          <Panel title="Production status" subtitle="All batches right now · tap a row to see them">
+            <BarList
+              rows={a.productionStatus.map((s) => ({ key: s.status, label: label(s.status), value: s.count, color: statusTone[s.status] ?? status.neutral }))}
+              onSelect={(r) => navigate(`/batches?status=${r.key}`)}
+            />
+          </Panel>
+
+          <Panel title="Rework by reason" subtitle={`${a.rework.open} open · ${a.rework.completed} completed in the period`}>
+            {a.rework.byType.length ? (
+              <>
+                <BarList rows={a.rework.byType.map((r) => ({ label: label(r.type), value: r.count, color: status.warning }))} />
+                <p className="chart-note">Sent back to: {a.rework.byStage.map((s) => `${label(s.stage)} ${s.count}`).join(' · ')}</p>
+              </>
+            ) : (
+              <p className="muted">No rework in this period.</p>
+            )}
+          </Panel>
+
+          <Panel title="Machine utilisation" subtitle="Reported run hours ÷ one 8-hour shift per day" className="span-2">
             <div className="mini-stats">
               {a.machineStatus.map((m) => (
                 <div key={m.status}>
@@ -156,14 +146,14 @@ export function FactoryAnalytics({ lookups }: { lookups: Lookups | undefined }) 
                 </div>
               ))}
             </div>
-            <div className="chart-box" style={{ height: Math.max(180, a.machineUtilization.length * 30) }}>
+            <div className="chart-box" style={{ height: Math.max(180, a.machineUtilization.length * 32) }}>
               <ResponsiveContainer>
-                <BarChart data={a.machineUtilization} layout="vertical" margin={{ right: 44 }}>
-                  <CartesianGrid stroke="#e6ece8" horizontal={false} />
+                <BarChart data={a.machineUtilization} layout="vertical" margin={{ left: 0, right: 48, top: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#eceef1" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} unit="%" tick={axis} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="code" tick={axis} tickLine={false} axisLine={false} width={56} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item) => [`${v}% · ${number(item.payload.runHours, 1)} h run · now ${label(item.payload.status)}`, 'Utilisation']} cursor={{ fill: '#eef3f0' }} />
-                  <Bar dataKey="utilization" maxBarSize={18} radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#2f443a', fontSize: 12, formatter: (v: unknown) => `${v}%` }}>
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item) => [`${v}% · ${number(item.payload.runHours, 1)} h run · now ${label(item.payload.status)}`, 'Utilisation']} cursor={{ fill: '#f3f4f6' }} />
+                  <Bar dataKey="utilization" maxBarSize={18} radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#1f2227', fontSize: 12, formatter: (v: unknown) => `${v}%` }}>
                     {a.machineUtilization.map((m) => <Cell key={m.code} fill={stageColors[m.type] ?? '#596b64'} />)}
                   </Bar>
                 </BarChart>
@@ -171,67 +161,26 @@ export function FactoryAnalytics({ lookups }: { lookups: Lookups | undefined }) 
             </div>
           </Panel>
 
-          <Panel title="Quality pass / fail" subtitle="Roll inspections in the period">
-            <div className="mini-stats">
-              <div>
-                <strong>{a.quality.passRate}%</strong>
-                <span><CheckCircle2 size={12} /> pass rate</span>
-              </div>
-              <div>
-                <strong>{a.quality.passed}</strong>
-                <span>Passed</span>
-              </div>
-              <div>
-                <strong>{a.quality.rework}</strong>
-                <span>Rework</span>
-              </div>
-              <div>
-                <strong>{a.quality.rejected}</strong>
-                <span>Rejected</span>
-              </div>
-            </div>
-            <div className="chart-box" style={{ height: 190 }}>
+          <Panel title="Quality by day" subtitle="Passed against rework or rejected, per day">
+            <div className="chart-box" style={{ height: 200 }}>
               <ResponsiveContainer>
-                <BarChart data={a.quality.daily}>
+                <BarChart data={a.quality.daily} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
                   {grid}
-                  <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: '#d9e3dd' }} />
+                  <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={{ stroke: '#d9dde2' }} interval="preserveStartEnd" minTickGap={12} />
                   <YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} width={32} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#eef3f0' }} />
-                  <Legend itemSorter={null} iconType="square" formatter={(v) => <span style={{ color: '#2f443a' }}>{v}</span>} />
-                  <Bar dataKey="passed" name="Passed" stackId="q" fill={statusColor('PASSED')} stroke={SURFACE} strokeWidth={2} maxBarSize={BAR} />
-                  <Bar dataKey="failed" name="Rework / rejected" stackId="q" fill={statusColor('REJECTED')} stroke={SURFACE} strokeWidth={2} maxBarSize={BAR} radius={[4, 4, 0, 0]} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#f3f4f6' }} />
+                  <Legend iconType="square" formatter={(v) => <span style={{ color: '#1f2227' }}>{v}</span>} />
+                  <Bar dataKey="passed" name="Passed" stackId="q" fill={status.good} stroke="#ffffff" strokeWidth={2} maxBarSize={BAR} />
+                  <Bar dataKey="failed" name="Rework / rejected" stackId="q" fill={status.critical} stroke="#ffffff" strokeWidth={2} maxBarSize={BAR} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </Panel>
 
-          <Panel title="Rework by reason" subtitle={`${a.rework.open} open · ${a.rework.completed} completed in the period`}>
-            {a.rework.byType.length ? (
-              <>
-                <div className="chart-box" style={{ height: Math.max(150, a.rework.byType.length * 34) }}>
-                  <ResponsiveContainer>
-                    <BarChart data={a.rework.byType.map((r) => ({ ...r, name: label(r.type) }))} layout="vertical" margin={{ right: 40 }}>
-                      <CartesianGrid stroke="#e6ece8" horizontal={false} />
-                      <XAxis type="number" allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
-                      <YAxis type="category" dataKey="name" tick={axis} tickLine={false} axisLine={false} width={120} />
-                      <Tooltip contentStyle={tooltipStyle} formatter={(v, _n, item) => [`${v} time(s) · ${number(item.payload.quantity)} m`, 'Rework']} cursor={{ fill: '#eef3f0' }} />
-                      <Bar dataKey="count" fill={statusColor('REWORK')} maxBarSize={BAR} radius={[0, 4, 4, 0]} label={{ position: 'right', fill: '#2f443a', fontSize: 12 }} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-                  Sent back to: {a.rework.byStage.map((s) => `${label(s.stage)} ${s.count}`).join(' · ')}
-                </p>
-              </>
-            ) : (
-              <p className="muted">No rework in this period.</p>
-            )}
-          </Panel>
-
           <Panel title="Production delays" subtitle="Unfinished batches past their due date">
             <div className="mini-stats">
               <div>
-                <strong style={{ color: a.delays.delayed ? '#9b2f36' : undefined }}>{a.delays.delayed}</strong>
+                <strong style={{ color: a.delays.delayed ? '#a3202a' : undefined }}>{a.delays.delayed}</strong>
                 <span><AlertTriangle size={12} /> running late</span>
               </div>
               <div>
@@ -251,19 +200,19 @@ export function FactoryAnalytics({ lookups }: { lookups: Lookups | undefined }) 
                 ))}
               </ul>
             ) : (
-              <p className="muted">Nothing is running late.</p>
+              <p className="muted"><CheckCircle2 size={13} /> Nothing is running late.</p>
             )}
           </Panel>
 
           <Panel title="Customer-wise production" subtitle="Metres ordered, produced and dispatched per customer" className="span-2">
-            <div className="chart-box" style={{ height: Math.max(200, a.customers.length * 56) }}>
+            <div className="chart-box" style={{ height: Math.max(220, a.customers.length * 58) }}>
               <ResponsiveContainer>
-                <BarChart data={a.customers} layout="vertical" barGap={2} margin={{ right: 24 }}>
-                  <CartesianGrid stroke="#e6ece8" horizontal={false} />
+                <BarChart data={a.customers} layout="vertical" barGap={2} margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#eceef1" horizontal={false} />
                   <XAxis type="number" tick={axis} tickLine={false} axisLine={false} />
-                  <YAxis type="category" dataKey="buyer" tick={axis} tickLine={false} axisLine={false} width={120} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [`${number(Number(v))} m`, String(n)]} cursor={{ fill: '#eef3f0' }} />
-                  <Legend itemSorter={null} iconType="square" formatter={(v) => <span style={{ color: '#2f443a' }}>{v}</span>} />
+                  <YAxis type="category" dataKey="buyer" tick={axis} tickLine={false} axisLine={false} width={118} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [`${number(Number(v))} m`, String(n)]} cursor={{ fill: '#f3f4f6' }} />
+                  <Legend iconType="square" formatter={(v) => <span style={{ color: '#1f2227' }}>{v}</span>} />
                   <Bar dataKey="ordered" name="Ordered" fill={progressRamp[0]} maxBarSize={14} radius={[0, 4, 4, 0]} />
                   <Bar dataKey="produced" name="Produced" fill={progressRamp[1]} maxBarSize={14} radius={[0, 4, 4, 0]} />
                   <Bar dataKey="dispatched" name="Dispatched" fill={progressRamp[2]} maxBarSize={14} radius={[0, 4, 4, 0]} />

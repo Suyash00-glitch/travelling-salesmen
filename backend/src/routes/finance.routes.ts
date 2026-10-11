@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { ensure, audit, sum } from '../lib/domain.js';
+import { ensure, audit } from '../lib/domain.js';
 import { id, write, empty } from '../lib/route-helpers.js';
-import { financialReport, buyerPayment, createClaim, decideClaim } from '../services/finance.service.js';
+import { financialReport, buyerPayment, createBill, payBill, createClaim, decideClaim } from '../services/finance.service.js';
 
 export const financeRouter = Router();
 
@@ -28,28 +28,30 @@ write(financeRouter, '/wages/:id/pay', 'finance:manage', empty, async (tx, _inpu
   return result;
 });
 
+// Wage run: pay every unpaid wage up to a date in one go (weekly or monthly payroll).
+const wageRunSchema = z.object({ upTo: z.string().date() });
+write(financeRouter, '/wages/pay-all', 'finance:manage', wageRunSchema, async (tx, input, actor) => {
+  const due = await tx.wageEntry.findMany({ where: { paidAt: null, attendance: { date: { lte: new Date(`${input.upTo}T00:00:00Z`) } } } });
+  ensure(due.length, 'There are no unpaid wages up to that date.');
+  const now = new Date();
+  await tx.wageEntry.updateMany({ where: { id: { in: due.map((w) => w.id) } }, data: { paidAt: now } });
+  const total = due.reduce((s, w) => s + w.amount.toNumber(), 0);
+  await audit(tx, actor, 'finance.wage', 'wage-run', `Wage run up to ${input.upTo}: ${due.length} entries · ₹${total.toFixed(2)}`);
+  return { count: due.length, total };
+});
+
 // Record buyer invoice payment
 write(financeRouter, '/invoices/:id/payments', 'finance:manage', contracts.paymentSchema, (tx, input, actor, req) =>
   buyerPayment(tx, id(req), input, actor),
 );
 
+// Bills from suppliers (yarn bills are created by receipts; everything else is entered here)
+write(financeRouter, '/bills', 'finance:manage', contracts.billSchema, (tx, input, actor) => createBill(tx, input, actor));
+
 // Record supplier bill payment
-write(financeRouter, '/bills/:id/payments', 'finance:manage', contracts.paymentSchema, async (tx, input, actor, req) => {
-  const bill = await tx.supplierBill.findUnique({
-    where: { id: id(req) },
-    include: { payments: true },
-  });
-  ensure(bill, 'Bill not found.', 404);
-  ensure(
-    sum(bill.payments.map((p) => p.amount)).plus(input.amount).lte(bill.total),
-    'Payment exceeds the outstanding bill.',
-  );
-  const payment = await tx.supplierPayment.create({
-    data: { billId: bill.id, ...input },
-  });
-  await audit(tx, actor, 'finance.supplier_payment', bill.id, `${input.amount} paid to supplier`);
-  return payment;
-});
+write(financeRouter, '/bills/:id/payments', 'finance:manage', contracts.paymentSchema, (tx, input, actor, req) =>
+  payBill(tx, id(req), input, actor),
+);
 
 // Claims: money owed to or by a buyer or supplier
 write(financeRouter, '/claims', 'finance:manage', contracts.claimSchema, (tx, input, actor) => createClaim(tx, input, actor));

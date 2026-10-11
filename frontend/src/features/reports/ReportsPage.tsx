@@ -70,6 +70,9 @@ export function ReportsPage() {
             onChange={(e) => setDay(e.target.value || today())}
           />
         </label>
+        <Button variant="outline" onClick={() => navigate('/workforce?view=reports')}>
+          <Activity size={16} /> Shift reports
+        </Button>
         <ExportButton onClick={handleExport} />
       </PageHeader>
 

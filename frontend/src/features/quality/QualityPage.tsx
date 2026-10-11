@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, ScanLine, CheckCircle2, TriangleAlert, Layers, ArrowUpRight, RotateCcw, } from 'lucide-react';
-import { can, type RollSummary, type PageResponse } from '@loomos/shared';
+import { can, defectChoices, type RollSummary, type PageResponse } from '@loomos/shared';
 import { useAuth } from '../auth/Auth';
 import { useData, useLookups } from '../../hooks/useFactory';
 import { FilterBar, useFilters } from '../../components/shared/FilterBar';
@@ -46,12 +46,21 @@ export function QualityPage({ finished = false }: {
         </Button>
       </PageHeader>
 
+      {finished ? (
+      <div className="kpi-grid">
+        <Kpi label="On the shelf" value={number(all.filter((r) => r.quality === 'PASSED' && !r.activeShipmentId).reduce((s, r) => s + Number(r.length), 0))} unit="m" icon={<Layers size={19}/>} meta={`${all.filter((r) => r.quality === 'PASSED' && !r.activeShipmentId).length} rolls passed and not loaded`} accent/>
+        <Kpi label="Loaded on trucks" value={number(all.filter((r) => r.activeShipmentId && r.location !== 'Dispatched' && r.location !== 'Delivered').reduce((s, r) => s + Number(r.length), 0))} unit="m" icon={<ShieldCheck size={19}/>} meta="Reserved for a shipment, not yet gone"/>
+        <Kpi label="Gone out" value={number(all.filter((r) => ['Dispatched', 'Delivered'].includes(r.location)).reduce((s, r) => s + Number(r.length), 0))} unit="m" icon={<CheckCircle2 size={19}/>} meta={`${all.filter((r) => ['Dispatched', 'Delivered'].includes(r.location)).length} rolls dispatched or delivered`}/>
+        <Kpi label="Finished stock" value={all.filter((r) => r.quality === 'PASSED' && !r.production.order && !r.activeShipmentId).length} unit="rolls" icon={<TriangleAlert size={19}/>} meta="Made for stock, free for any order"/>
+      </div>
+      ) : (
       <div className="kpi-grid">
         <Kpi label="Awaiting inspection" value={all.filter((r) => r.quality === 'PENDING').length} unit="rolls" icon={<ShieldCheck size={19}/>} meta="Ready for your quality team"/>
         <Kpi label="Quality approved" value={all.filter((r) => r.quality === 'PASSED').length} unit="rolls" icon={<CheckCircle2 size={19}/>} meta="Checked, recorded, and approved" accent/>
         <Kpi label="Needs rework" value={all.filter((r) => r.quality === 'REWORK').length} unit="rolls" icon={<TriangleAlert size={19}/>} meta="A second chance to get it right"/>
         <Kpi label="Available to ship" value={all.filter((r) => r.quality === 'PASSED' && !r.activeShipmentId).length} unit="rolls" icon={<Layers size={19}/>} meta="Unreserved finished inventory"/>
       </div>
+      )}
 
       <Panel>
         <div className="table-toolbar">
@@ -108,11 +117,7 @@ export function QualityPage({ finished = false }: {
             {
                 accessorKey: 'location',
                 header: 'Location',
-                cell: ({ row }) => (<span className="muted">
-                  {row.original.activeShipmentId
-                        ? 'Reserved / dispatched'
-                        : row.original.location}
-                </span>),
+                cell: ({ row }) => (<span className="muted">{row.original.location}</span>),
             },
             {
                 id: 'actions',
@@ -137,9 +142,12 @@ export function QualityPage({ finished = false }: {
                             },
                             {
                                 name: 'defects',
-                                label: 'Defects (comma separated)',
+                                label: 'Defects found',
+                                type: 'checkboxes',
                                 required: false,
-                                hint: 'Examples: holes, colour mismatch, uneven weaving',
+                                span: true,
+                                options: defectChoices.map((d) => ({ value: d, label: d })),
+                                hint: 'Tick every defect you saw. Rework and rejection need at least one.',
                             },
                             {
                                 name: 'notes',
@@ -149,13 +157,11 @@ export function QualityPage({ finished = false }: {
                                 span: true,
                             },
                         ],
-                        transform: (d) => ({
-                            ...d,
-                            defects: d.defects
-                                .split(',')
-                                .map((s: string) => s.trim())
-                                .filter(Boolean),
-                        }),
+                        transform: (d) => {
+                            const raw = d.defects as unknown;
+                            const defects = Array.isArray(raw) ? raw : raw ? [String(raw)] : [];
+                            return { ...d, defects };
+                        },
                         submit: 'Save inspection',
                     })}>
                     <ShieldCheck size={14}/>

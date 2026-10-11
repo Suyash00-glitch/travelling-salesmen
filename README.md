@@ -71,6 +71,13 @@ All seeded accounts use password: `LoomDemo2026!`
 
 New buyers sign up at `/buyer/signup`; staff use "Request an account" on the login page. An administrator approves every account.
 
+## What the owner sees
+
+- **Accounts** answers "did we make money this month?": sales against yarn bills, other bills, wages and expenses, a six-month chart, and cost per order.
+- **Workers & shifts → Shift reports** shows what happened in every shift of any day: who worked, metres per stage and machine, breakdowns, inspections, wages and a timeline.
+- **+ New** in the top bar adds anything your role allows: orders, batches, yarn receipts, purchase orders, bills, expenses, buyers, suppliers, machines, workers, shifts, fabrics and user logins.
+- The demo data covers five months (24 finished orders, monthly yarn receipts and bills, daily attendance and wages, breakdowns, claims) plus today's live floor.
+
 ## Who may do what
 
 Every API write names the one permission it needs; the role table lives in
@@ -96,8 +103,8 @@ browser. Standard roles are fixed in code; custom roles made in Settings carry t
 | Purchase orders | Procurement Manager (Inventory Manager may raise one) |
 | Inspect rolls, repair at the bay | Quality Inspector |
 | Load trucks, confirm dispatch, mark delivered | Dispatch Manager |
-| Payments, expenses, claims | Accounts Manager |
-| Prices, recipes, workers, users, roles | Admin |
+| Bills, payments, wage runs, expenses, claims | Accounts Manager |
+| Prices, fabrics, workers, shifts, users, roles | Admin |
 
 Administrators can do everything. Everyone else sees only the pages their role needs.
 

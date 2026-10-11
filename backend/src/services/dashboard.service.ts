@@ -50,6 +50,18 @@ export async function dashboard(user: CurrentUser, date?: string) {
   if (can(user, 'inventory')) {
     materials.filter((m) => m.low).forEach((m) => alerts.push({ id: m.material + m.specification, title: `${m.material} running low`, description: `${m.available.toFixed(0)} kg available · ${m.specification}`, severity: 'warning', href: '/inventory' }));
   }
+  if ((can(user, 'inventory') || can(user, 'procurement')) && user.role !== 'BUYER') {
+    const short = active.filter((o) => o.yarn?.status === 'SHORT');
+    if (short.length) {
+      alerts.push({
+        id: 'yarn-short',
+        title: `${short.length} order${short.length > 1 ? 's' : ''} cannot start: not enough yarn`,
+        description: short.slice(0, 3).map((o) => `${o.number}: ${o.yarn!.shortKg} kg ${o.yarn!.material}`).join(' · '),
+        severity: 'warning',
+        href: can(user, 'procurement') ? '/procurement' : '/inventory',
+      });
+    }
+  }
   if (can(user, 'orders') && user.role !== 'BUYER') {
     active.filter((o) => o.risk.reasons.length).slice(0, 3).forEach((o) => alerts.push({ id: o.id, title: `${o.number} · Delivery risk`, description: o.risk.reasons[0], severity: 'warning', href: `/orders/${o.id}` }));
   }
@@ -87,6 +99,17 @@ export async function dashboard(user: CurrentUser, date?: string) {
     delayed: active.filter((o) => new Date(o.deadline) < day).length,
     pendingReview: orders.filter((o) => o.status === 'PENDING_REVIEW').length,
     orders: orders.slice(0, 6),
+    // Where every order is, from request to delivery (for the "orders by stage" chart).
+    orderStages: [
+      ['Waiting review', ['PENDING_REVIEW']],
+      ['Planned', ['CONFIRMED', 'PLANNED']],
+      ['In production', ['IN_PRODUCTION']],
+      ['Quality check', ['QUALITY']],
+      ['Ready to ship', ['READY']],
+      ['On the way', ['PARTIAL', 'DISPATCHED']],
+      ['Delivered', ['COMPLETED']],
+    ].map(([stage, statuses]) => ({ stage: stage as string, count: orders.filter((o) => (statuses as string[]).includes(o.status)).length })),
+    yarnShort: active.filter((o) => o.yarn?.status === 'SHORT').length,
     // Production
     todayOutput: String(series[6].output),
     previousOutput: String(series[5].output),

@@ -1,37 +1,58 @@
 import { useState } from 'react';
-import { Wallet, ArrowDownLeft, Receipt, AlertCircle, Plus, CalendarDays, FileWarning, BadgeIndianRupee } from 'lucide-react';
+import { Bar, CartesianGrid, Legend, Line, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Wallet, ArrowDownLeft, AlertCircle, Plus, FileWarning, BadgeIndianRupee, Users, FileText } from 'lucide-react';
+import { factoryToday, type MonthMoney } from '@loomos/shared';
+import { billForm, billCategoryLabel, expenseForm } from '../forms/quickForms';
 import { useData, useLookups, useAction } from '../../hooks/useFactory';
 import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { FilterBar, useFilters } from '../../components/shared/FilterBar';
 import { PageHeader, Panel, Loading, ErrorState, Badge, Kpi, ExportButton, Empty } from '../../components/shared/common';
+import { Donut, axis, series, tooltipStyle } from '../../components/shared/Charts';
 import { DataTable } from '../../components/tables/DataTable';
 import { money, date, exportCsv, label } from '../../lib/utils';
 
+type Money = string;
 export interface Finance {
-  billed: string;
-  received: string;
-  cost: string;
-  expenses: string;
-  outstanding: string;
-  overdue: string;
+  month: string;
+  billed: Money;
+  received: Money;
+  cost: Money;
+  expenses: Money;
+  outstanding: Money;
+  overdue: Money;
   overdueCount: number;
   pendingInvoices: number;
   pendingClaims: number;
-  pendingClaimAmount: string;
-  estimatedProfit: string;
-  wages: string;
-  invoices: { id: string; number: string; buyer: string; buyerId: string; order: string; challan: string; total: string; adjustment: string; paid: string; outstanding: string; status: string; createdAt: string; dueAt: string | null; overdue: boolean }[];
-  payments: { id: string; reference: string; amount: string; createdAt: string; invoice: string; buyer: string; order: string }[];
-  bills: { id: string; supplier: string; reference: string; total: string; paid: string; dueAt: string }[];
-  expenseList: { id: string; category: string; description: string; amount: string; recordedBy: string; createdAt: string }[];
-  claims: { id: string; number: string; party: string; who: string; order: string; invoice: string; amount: string; reason: string; status: string; note: string; createdAt: string; createdBy: string }[];
-  wageList: { id: string; worker: string; amount: string; calculation: string; paidAt: string | null; date: string }[];
-  costBreakdown: { category: string; amount: string }[];
-  orders: { id: string; number: string; buyer: string; estimatedRevenue: string; billed: string; actualCost: string; margin: string }[];
+  pendingClaimAmount: Money;
+  billsDue: Money;
+  billsDueCount: number;
+  billsOverdueCount: number;
+  wages: Money;
+  wagesUnpaid: Money;
+  pnl: MonthMoney;
+  trend: MonthMoney[];
+  spendBreakdown: { key: string; name: string; value: number }[];
+  invoices: { id: string; number: string; buyer: string; buyerId: string; order: string; challan: string; total: Money; adjustment: Money; paid: Money; outstanding: Money; status: string; createdAt: string; dueAt: string | null; overdue: boolean }[];
+  payments: { id: string; reference: string; amount: Money; createdAt: string; invoice: string; buyer: string; order: string }[];
+  bills: { id: string; supplier: string; supplierId: string; number: string; category: string; description: string; fromReceipt: boolean; billDate: string; total: Money; paid: Money; outstanding: Money; dueAt: string; overdue: boolean }[];
+  expenseList: { id: string; category: string; description: string; amount: Money; recordedBy: string; createdAt: string }[];
+  claims: { id: string; number: string; party: string; who: string; order: string; invoice: string; amount: Money; reason: string; status: string; note: string; createdAt: string; createdBy: string }[];
+  wageList: { id: string; worker: string; shift: string; amount: Money; calculation: string; paidAt: string | null; date: string }[];
+  orders: { id: string; number: string; buyer: string; status: string; metres: Money; estimatedRevenue: Money; billed: Money; actualCost: Money; costPerMetre: Money; margin: Money; costs: { category: string; amount: Money }[] }[];
 }
 
-const tabs = ['Invoices', 'Payments', 'Claims', 'Expenses', 'Supplier bills', 'Wages', 'Order margins'];
+const tabs = ['Invoices', 'Payments', 'Bills to pay', 'Wages', 'Expenses', 'Claims', 'Order costs'];
+const short = (v: number) => (Math.abs(v) >= 100000 ? `₹${(v / 100000).toFixed(1)} L` : money(v));
+
+// The last twelve months, newest first, for the month picker.
+function recentMonths() {
+  const [y, m] = factoryToday().split('-').map(Number);
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 - i, 15));
+    return { value: d.toISOString().slice(0, 7), label: new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d) };
+  });
+}
 
 export function FinancePage() {
   const [month, setMonth] = useState('');
@@ -46,12 +67,14 @@ export function FinancePage() {
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
 
   const d = query.data!;
+  const p = d.pnl;
   const buyerName = lookups.data?.buyers.find((b) => b.id === filters.values.buyerId)?.name;
   const invoices = d.invoices
     .filter((i) => !filters.values.buyerId || i.buyerId === filters.values.buyerId)
     .filter((i) => !filters.values.status || (filters.values.status === 'OVERDUE' ? i.overdue : filters.values.status === 'OPEN' ? Number(i.outstanding) > 0 : i.status === filters.values.status));
-  const payments = d.payments.filter((p) => !buyerName || p.buyer === buyerName);
+  const payments = d.payments.filter((x) => !buyerName || x.buyer === buyerName);
   const claims = d.claims.filter((c) => !buyerName || c.who === buyerName).filter((c) => !filters.values.status || c.status === filters.values.status);
+  const bills = d.bills.filter((b) => !filters.values.status || (filters.values.status === 'OVERDUE' ? b.overdue : filters.values.status === 'OPEN' ? Number(b.outstanding) > 0 : Number(b.outstanding) === 0));
 
   const paymentForm = (inv: Finance['invoices'][number]): FormSpec => ({
     title: `Record payment · ${inv.number}`,
@@ -60,6 +83,17 @@ export function FinancePage() {
     fields: [
       { name: 'amount', label: 'Amount received (₹)', type: 'number', min: 0.01, value: Number(inv.outstanding) },
       { name: 'reference', label: 'Bank / cheque reference', hint: 'Must be unique: the same reference cannot be recorded twice.' },
+    ],
+    submit: 'Record payment',
+  });
+
+  const payBillForm = (b: Finance['bills'][number]): FormSpec => ({
+    title: `Pay ${b.supplier} · bill ${b.number}`,
+    description: `${billCategoryLabel(b.category)} · still to pay ${money(b.outstanding)}`,
+    path: `/bills/${b.id}/payments`,
+    fields: [
+      { name: 'amount', label: 'Amount paid (₹)', type: 'number', min: 0.01, value: Number(b.outstanding) },
+      { name: 'reference', label: 'Bank / cheque reference', hint: 'Must be unique.' },
     ],
     submit: 'Record payment',
   });
@@ -89,52 +123,94 @@ export function FinancePage() {
     submit: label(decision),
   });
 
-  const expenseForm: FormSpec = {
-    title: 'Record expense',
-    path: '/expenses',
-    fields: [
-      { name: 'category', label: 'Category', type: 'select', options: ['Utilities', 'Rent', 'Transport', 'Maintenance', 'Salaries', 'Other'].map((s) => ({ value: s, label: s })) },
-      { name: 'amount', label: 'Amount (₹)', type: 'number', min: 0.01 },
-      { name: 'description', label: 'Description', type: 'textarea', span: true },
-    ],
-    submit: 'Save expense',
+  const wageRunForm: FormSpec = {
+    title: 'Pay wages',
+    description: `Marks every unpaid wage up to the date as paid. Unpaid now: ${money(d.wagesUnpaid)}.`,
+    path: '/wages/pay-all',
+    fields: [{ name: 'upTo', label: 'Pay everything worked up to', type: 'date', value: factoryToday() }],
+    submit: 'Pay wages',
   };
 
   const statusOptions = tab === 'Claims'
     ? ['PENDING', 'APPROVED', 'REJECTED', 'RESOLVED'].map((s) => ({ value: s, label: label(s) }))
     : [{ value: 'OPEN', label: 'Unpaid' }, { value: 'OVERDUE', label: 'Overdue' }, { value: 'PAID', label: 'Paid' }];
 
+  const exportRows = () =>
+    tab === 'Invoices' ? invoices : tab === 'Payments' ? payments : tab === 'Claims' ? claims : tab === 'Expenses' ? d.expenseList : tab === 'Bills to pay' ? bills : tab === 'Wages' ? d.wageList : d.orders.map(({ costs, ...o }) => ({ ...o, ...Object.fromEntries(costs.map((c) => [c.category.toLowerCase(), c.amount])) }));
+
   return (
     <>
-      <PageHeader eyebrow="ACCOUNTS" title="Accounts" description="Invoices, payments, claims and expenses. Every number comes from recorded transactions.">
+      <PageHeader eyebrow="ACCOUNTS" title="Accounts" description="Sales, bills, wages and expenses in one place, so you can see whether the mill made money.">
         <label className="date-button">
-          <CalendarDays size={16} />
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month" />
+          <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Month">
+            <option value="">All records · this month’s result</option>
+            {recentMonths().map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
         </label>
-        <ExportButton onClick={() => exportCsv(`accounts-${tab.toLowerCase().replace(' ', '-')}`, tab === 'Invoices' ? invoices : tab === 'Payments' ? payments : tab === 'Claims' ? claims : tab === 'Expenses' ? d.expenseList : tab === 'Supplier bills' ? d.bills : tab === 'Wages' ? d.wageList : d.orders)} />
-        {tab === 'Claims' && <Button onClick={() => setSpec(claimForm)}><Plus size={16} /> New claim</Button>}
-        {tab === 'Expenses' && <Button onClick={() => setSpec(expenseForm)}><Plus size={16} /> Add expense</Button>}
+        <ExportButton onClick={() => exportCsv(`accounts-${tab.toLowerCase().replace(/ /g, '-')}`, exportRows())} />
+        <Button variant="outline" onClick={() => setSpec(expenseForm())}><Plus size={16} /> Expense</Button>
+        <Button onClick={() => setSpec(billForm(lookups.data))}><Plus size={16} /> Add bill</Button>
       </PageHeader>
 
-      <div className="kpi-grid">
-        <Kpi label="Invoiced" value={money(d.billed)} icon={<Receipt size={19} />} meta={`${d.invoices.length} invoices${month ? ' this month' : ''}`} />
-        <Kpi label="Received" value={money(d.received)} icon={<ArrowDownLeft size={19} />} meta={`${d.payments.length} payments`} accent />
-        <Kpi label="Outstanding" value={money(d.outstanding)} icon={<Wallet size={19} />} meta={`${d.pendingInvoices} unpaid invoices`} />
-        <Kpi label="Overdue" value={money(d.overdue)} icon={<AlertCircle size={19} />} meta={`${d.overdueCount} invoices past 30 days`} />
-        <Kpi label="Expenses" value={money(d.expenses)} icon={<BadgeIndianRupee size={19} />} meta={`Wages ${money(d.wages)}`} />
+      <div className="pnl-hero">
+        <div className="pnl-card">
+          <div className="eyebrow">{p.label.toUpperCase()} · DID WE MAKE MONEY?</div>
+          <h2 className={p.profit < 0 ? 'loss' : ''}>{p.profit >= 0 ? 'Profit' : 'Loss'} {money(Math.abs(p.profit))}</h2>
+          <p>Sales invoiced minus raw material bills, other bills, wages and expenses.</p>
+          <div className="pnl-lines">
+            <div><span>Sales invoiced</span><strong>{money(p.sales)}</strong></div>
+            <div><span>Raw material bills</span><strong>{money(p.yarnBills)}</strong></div>
+            <div><span>Other bills</span><strong>{money(p.otherBills)}</strong></div>
+            <div><span>Worker wages</span><strong>{money(p.wages)}</strong></div>
+            <div><span>Other expenses</span><strong>{money(p.expenses)}</strong></div>
+            <div><span>Cash in from buyers</span><strong>{money(p.received)}</strong></div>
+          </div>
+        </div>
+        <Panel title="Where the money went" subtitle={`${p.label} · ${money(p.spend)} in total`}>
+          <Donut
+            data={d.spendBreakdown.map((s, i) => ({ name: s.name, value: s.value, color: series[i] }))}
+            centre={short(p.spend)}
+            caption="spent"
+            format={short}
+            onSelect={(s) => setTab(s.name.includes('wages') ? 'Wages' : s.name.includes('expenses') ? 'Expenses' : 'Bills to pay')}
+          />
+        </Panel>
+      </div>
+
+      <Panel title="Six months at a glance" subtitle="Sales against spending each month; the line is the profit">
+        <div className="chart-box" style={{ height: 260 }}>
+          <ResponsiveContainer>
+            <ComposedChart data={d.trend} barGap={2} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke="#eceef1" />
+              <XAxis dataKey="label" tick={axis} axisLine={false} tickLine={false} />
+              <YAxis tick={axis} axisLine={false} tickLine={false} width={60} tickFormatter={(v) => short(Number(v))} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [money(Number(v)), String(n)]} cursor={{ fill: '#f3f4f6' }} />
+              <Legend iconType="square" formatter={(v) => <span style={{ color: '#1f2227' }}>{v}</span>} />
+              <Bar dataKey="sales" name="Sales" fill={series[0]} maxBarSize={26} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="spend" name="Spent" fill={series[1]} maxBarSize={26} radius={[4, 4, 0, 0]} />
+              <Line dataKey="profit" name="Profit" stroke="#111316" strokeWidth={2} dot={{ r: 4, fill: '#111316' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </Panel>
+
+      <div className="kpi-grid mt-5">
+        <Kpi label="To collect" value={money(d.outstanding)} icon={<Wallet size={19} />} meta={`${d.pendingInvoices} unpaid invoices · ${money(d.overdue)} overdue`} accent />
+        <Kpi label="Bills to pay" value={money(d.billsDue)} icon={<FileText size={19} />} meta={`${d.billsDueCount} open · ${d.billsOverdueCount} past due`} />
+        <Kpi label="Wages unpaid" value={money(d.wagesUnpaid)} icon={<Users size={19} />} meta={`${money(d.wages)} wages${month ? ' this month' : ' in total'}`} />
         <Kpi label="Pending claims" value={d.pendingClaims} icon={<FileWarning size={19} />} meta={money(d.pendingClaimAmount)} />
       </div>
 
       <Panel>
-        <div className="tabs" style={{ marginBottom: 12 }}>
+        <div className="tabs">
           {tabs.map((t) => (
             <button key={t} className={tab === t ? 'active' : ''} onClick={() => { setTab(t); filters.setValue('status', ''); }}>{t}</button>
           ))}
         </div>
-        {['Invoices', 'Payments', 'Claims'].includes(tab) && (
+        {['Invoices', 'Payments', 'Claims', 'Bills to pay'].includes(tab) && (
           <FilterBar
             filters={[
-              { name: 'buyerId', label: 'Customer', options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })) },
+              ...(tab === 'Bills to pay' ? [] : [{ name: 'buyerId', label: 'Customer', options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })) }]),
               ...(tab === 'Payments' ? [] : [{ name: 'status', label: 'Status', options: statusOptions }]),
             ]}
             values={filters.values} onChange={filters.setValue} onClear={filters.clear} active={filters.active}
@@ -149,7 +225,7 @@ export function FinancePage() {
             { accessorKey: 'total', header: 'Billed', cell: ({ row }) => money(row.original.total) },
             { accessorKey: 'paid', header: 'Received', cell: ({ row }) => <div className="cell-stack"><span>{money(row.original.paid)}</span>{Number(row.original.adjustment) > 0 && <span>credit {money(row.original.adjustment)}</span>}</div> },
             { accessorKey: 'outstanding', header: 'Outstanding', cell: ({ row }) => <strong>{money(row.original.outstanding)}</strong> },
-            { accessorKey: 'status', header: 'Status', cell: ({ row }) => <span style={{ display: 'flex', gap: 4 }}><Badge value={row.original.status} />{row.original.overdue && <Badge value="REJECTED">Overdue</Badge>}</span> },
+            { accessorKey: 'status', header: 'Status', cell: ({ row }) => <span className="batch-flags" style={{ marginTop: 0 }}><Badge value={row.original.status} />{row.original.overdue && <Badge value="REJECTED">Overdue</Badge>}</span> },
             { id: 'actions', header: '', cell: ({ row }) => Number(row.original.outstanding) > 0 ? <Button size="sm" onClick={() => setSpec(paymentForm(row.original))}><ArrowDownLeft size={14} /> Record payment</Button> : null },
           ]} />
         ) : <Empty title="No invoices" description="Invoices are raised when a dispatch is confirmed." />)}
@@ -164,21 +240,33 @@ export function FinancePage() {
           ]} />
         ) : <Empty title="No payments yet" description="Record payments from the Invoices tab." />)}
 
-        {tab === 'Claims' && (claims.length ? (
-          <DataTable data={claims} columns={[
-            { accessorKey: 'number', header: 'Claim', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.number}</strong><span>{date(row.original.createdAt)} · {row.original.createdBy}</span></div> },
-            { accessorKey: 'who', header: 'With', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.who}</strong><span>{label(row.original.party)}{row.original.invoice ? ` · ${row.original.invoice}` : ''}{row.original.order ? ` · ${row.original.order}` : ''}</span></div> },
-            { accessorKey: 'reason', header: 'Reason', cell: ({ row }) => <div className="cell-stack"><span>{row.original.reason}</span>{row.original.note && <span>{row.original.note}</span>}</div> },
-            { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => <strong>{money(row.original.amount)}</strong> },
-            { accessorKey: 'status', header: 'Status', cell: ({ row }) => <Badge value={row.original.status === 'APPROVED' ? 'PASSED' : row.original.status} >{label(row.original.status)}</Badge> },
-            { id: 'actions', header: '', cell: ({ row }) => (
-              <div style={{ display: 'flex', gap: 6 }}>
-                {row.original.status === 'PENDING' && <><Button size="sm" onClick={() => setSpec(decideForm(row.original, 'APPROVED'))}>Approve</Button><Button size="sm" variant="outline" onClick={() => setSpec(decideForm(row.original, 'REJECTED'))}>Reject</Button></>}
-                {row.original.status === 'APPROVED' && <Button size="sm" variant="outline" onClick={() => setSpec(decideForm(row.original, 'RESOLVED'))}>Mark resolved</Button>}
-              </div>
-            ) },
+        {tab === 'Bills to pay' && (bills.length ? (
+          <DataTable data={bills} columns={[
+            { accessorKey: 'number', header: 'Bill', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.number}</strong><span>{billCategoryLabel(row.original.category)}{row.original.fromReceipt ? ' · from yarn receipt' : ''}</span></div> },
+            { accessorKey: 'supplier', header: 'Supplier', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.supplier}</strong><span>{row.original.description}</span></div> },
+            { accessorKey: 'billDate', header: 'Date / pay by', cell: ({ row }) => <div className="cell-stack"><span>{date(row.original.billDate)}</span><span>pay by {date(row.original.dueAt)}</span></div> },
+            { accessorKey: 'total', header: 'Amount', cell: ({ row }) => money(row.original.total) },
+            { accessorKey: 'outstanding', header: 'Still to pay', cell: ({ row }) => <strong>{money(row.original.outstanding)}</strong> },
+            { id: 'status', header: 'Status', cell: ({ row }) => Number(row.original.outstanding) === 0 ? <Badge value="PAID" /> : row.original.overdue ? <Badge value="REJECTED">Overdue</Badge> : Number(row.original.paid) > 0 ? <Badge value="PARTIAL">Part paid</Badge> : <Badge value="OPEN">Unpaid</Badge> },
+            { id: 'actions', header: '', cell: ({ row }) => Number(row.original.outstanding) > 0 ? <Button size="sm" variant="outline" onClick={() => setSpec(payBillForm(row.original))}>Pay</Button> : null },
           ]} />
-        ) : <Empty title="No claims" description="Record a claim when goods are damaged, short, or priced wrongly." />)}
+        ) : <Empty title="No bills" description="Add a bill with the Add bill button. Yarn bills are created when yarn is received." />)}
+
+        {tab === 'Wages' && (
+          <>
+            <div className="table-toolbar">
+              <span className="muted">{d.wageList.length} wage entries · {money(d.wagesUnpaid)} unpaid</span>
+              <Button size="sm" disabled={Number(d.wagesUnpaid) <= 0} onClick={() => setSpec(wageRunForm)}><BadgeIndianRupee size={14} /> Pay wages</Button>
+            </div>
+            <DataTable data={d.wageList} columns={[
+              { accessorKey: 'date', header: 'Day', cell: ({ row }) => <div className="cell-stack"><span>{date(row.original.date)}</span><span>{row.original.shift}</span></div> },
+              { accessorKey: 'worker', header: 'Worker' },
+              { accessorKey: 'calculation', header: 'Basis' },
+              { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => money(row.original.amount) },
+              { id: 'paid', header: 'Status', cell: ({ row }) => row.original.paidAt ? <Badge value="PAID">Paid {date(row.original.paidAt)}</Badge> : <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ path: `/wages/${row.original.id}/pay` })}>Pay</Button> },
+            ]} />
+          </>
+        )}
 
         {tab === 'Expenses' && (d.expenseList.length ? (
           <DataTable data={d.expenseList} columns={[
@@ -190,42 +278,50 @@ export function FinancePage() {
           ]} />
         ) : <Empty title="No expenses recorded" />)}
 
-        {tab === 'Supplier bills' && (
-          <DataTable data={d.bills} columns={[
-            { accessorKey: 'reference', header: 'Receipt' },
-            { accessorKey: 'supplier', header: 'Supplier' },
-            { accessorKey: 'total', header: 'Bill', cell: ({ row }) => money(row.original.total) },
-            { accessorKey: 'paid', header: 'Paid', cell: ({ row }) => money(row.original.paid) },
-            { accessorKey: 'dueAt', header: 'Due', cell: ({ row }) => date(row.original.dueAt) },
-            { id: 'actions', header: '', cell: ({ row }) => Number(row.original.total) > Number(row.original.paid) ? <Button size="sm" variant="outline" onClick={() => setSpec({
-              title: `Pay supplier · ${row.original.supplier}`, path: `/bills/${row.original.id}/payments`,
-              fields: [{ name: 'amount', label: 'Amount (₹)', type: 'number', min: 0.01, value: Number(row.original.total) - Number(row.original.paid) }, { name: 'reference', label: 'Reference' }],
-              submit: 'Record payment',
-            })}>Pay</Button> : <Badge value="PAID" /> },
-          ]} />
+        {tab === 'Claims' && (
+          <>
+            <div className="table-toolbar">
+              <span className="muted">Damage, shortage or price differences with buyers and suppliers.</span>
+              <Button size="sm" onClick={() => setSpec(claimForm)}><Plus size={14} /> New claim</Button>
+            </div>
+            {claims.length ? (
+              <DataTable data={claims} columns={[
+                { accessorKey: 'number', header: 'Claim', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.number}</strong><span>{date(row.original.createdAt)} · {row.original.createdBy}</span></div> },
+                { accessorKey: 'who', header: 'With', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.who}</strong><span>{label(row.original.party)}{row.original.invoice ? ` · ${row.original.invoice}` : ''}{row.original.order ? ` · ${row.original.order}` : ''}</span></div> },
+                { accessorKey: 'reason', header: 'Reason', cell: ({ row }) => <div className="cell-stack"><span>{row.original.reason}</span>{row.original.note && <span>{row.original.note}</span>}</div> },
+                { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => <strong>{money(row.original.amount)}</strong> },
+                { accessorKey: 'status', header: 'Status', cell: ({ row }) => <Badge value={row.original.status === 'APPROVED' ? 'PASSED' : row.original.status}>{label(row.original.status)}</Badge> },
+                { id: 'actions', header: '', cell: ({ row }) => (
+                  <div className="record-actions">
+                    {row.original.status === 'PENDING' && <><Button size="sm" onClick={() => setSpec(decideForm(row.original, 'APPROVED'))}>Approve</Button><Button size="sm" variant="outline" onClick={() => setSpec(decideForm(row.original, 'REJECTED'))}>Reject</Button></>}
+                    {row.original.status === 'APPROVED' && <Button size="sm" variant="outline" onClick={() => setSpec(decideForm(row.original, 'RESOLVED'))}>Mark resolved</Button>}
+                  </div>
+                ) },
+              ]} />
+            ) : <Empty title="No claims" description="Record a claim when goods are damaged, short, or priced wrongly." />}
+          </>
         )}
 
-        {tab === 'Wages' && (
-          <DataTable data={d.wageList} columns={[
-            { accessorKey: 'date', header: 'Day', cell: ({ row }) => date(row.original.date) },
-            { accessorKey: 'worker', header: 'Worker' },
-            { accessorKey: 'calculation', header: 'Basis' },
-            { accessorKey: 'amount', header: 'Amount', cell: ({ row }) => money(row.original.amount) },
-            { id: 'paid', header: 'Status', cell: ({ row }) => row.original.paidAt ? <Badge value="PAID">Paid {date(row.original.paidAt)}</Badge> : <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => action.mutate({ path: `/wages/${row.original.id}/pay` })}>Pay</Button> },
-          ]} />
-        )}
-
-        {tab === 'Order margins' && (
+        {tab === 'Order costs' && (
           <DataTable data={d.orders} columns={[
-            { accessorKey: 'number', header: 'Order' },
-            { accessorKey: 'buyer', header: 'Buyer' },
+            { accessorKey: 'number', header: 'Order', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.number}</strong><span>{row.original.buyer} · {label(row.original.status)}</span></div> },
+            { accessorKey: 'actualCost', header: 'What it cost', cell: ({ row }) => (
+              <div className="cell-stack">
+                <strong>{money(row.original.actualCost)}</strong>
+                <span>{row.original.costs.filter((c) => Number(c.amount) > 0).map((c) => `${label(c.category)} ${money(c.amount)}`).join(' · ') || 'Nothing made yet'}</span>
+              </div>
+            ) },
+            { accessorKey: 'costPerMetre', header: 'Cost / metre', cell: ({ row }) => `${money(row.original.costPerMetre)} · ${Number(row.original.metres).toLocaleString('en-IN')} m` },
             { accessorKey: 'estimatedRevenue', header: 'Order value', cell: ({ row }) => money(row.original.estimatedRevenue) },
-            { accessorKey: 'billed', header: 'Billed', cell: ({ row }) => money(row.original.billed) },
-            { accessorKey: 'actualCost', header: 'Cost so far', cell: ({ row }) => money(row.original.actualCost) },
+            { accessorKey: 'billed', header: 'Invoiced', cell: ({ row }) => money(row.original.billed) },
             { accessorKey: 'margin', header: 'Margin', cell: ({ row }) => <strong className={Number(row.original.margin) < 0 ? 'red-text' : 'green-text'}>{money(row.original.margin)}</strong> },
           ]} />
         )}
       </Panel>
+
+      <p className="chart-note">
+        <AlertCircle size={13} /> {d.overdueCount} invoices overdue. Invoices are due 30 days after dispatch; bills on the pay-by date entered (30 days by default).
+      </p>
 
       {spec && <ActionForm spec={spec} onClose={() => setSpec(null)} />}
     </>

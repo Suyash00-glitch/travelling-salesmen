@@ -14,8 +14,8 @@ export interface AnalyticsFilters {
 const DAY = 86400000;
 const stages = ['SPINNING', 'WEAVING', 'DYEING'] as const;
 
-const dayLabel = (d: Date) =>
-  new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }).format(d);
+const dayFormat = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
+const dayLabel = (d: Date) => dayFormat.format(d);
 
 export async function analytics(filters: AnalyticsFilters) {
   const to = businessDay(filters.to ? new Date(`${filters.to}T12:00:00+05:30`) : new Date());
@@ -148,7 +148,7 @@ export async function analytics(filters: AnalyticsFilters) {
     const row = byBuyer.get(o.buyerId) ?? { buyer: o.buyer.name, ordered: 0, produced: 0, dispatched: 0 };
     row.ordered += sum(o.items.map((i) => i.quantity)).toNumber();
     row.produced += sum(o.productions.flatMap((p) => p.rolls).map((r) => r.length)).toNumber();
-    row.dispatched += sum(o.shipments.filter((s) => s.status === 'DISPATCHED').map((s) => s.quantity)).toNumber();
+    row.dispatched += sum(o.shipments.filter((s) => ['DISPATCHED', 'DELIVERED'].includes(s.status)).map((s) => s.quantity)).toNumber();
     byBuyer.set(o.buyerId, row);
   }
   const customers = [...byBuyer.values()].sort((a, b) => b.ordered - a.ordered);

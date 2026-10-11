@@ -3,6 +3,15 @@ import type { CurrentUser } from '@loomos/shared';
 import { audit, D, ensure, type Actor } from '../lib/domain.js';
 import { notify, managers } from './notification.service.js';
 
+// Which stage most likely caused a defect, so rework reports point at the right department.
+export function defectTypeOf(defects: string[]) {
+  const text = defects.join(' ').toLowerCase();
+  if (/colou?r|shade|stain|dye|patch/.test(text)) return 'DYEING_DEFECT';
+  if (/weav|pick|weft|warp|hole|reed|float/.test(text)) return 'WEAVING_DEFECT';
+  if (/slub|yarn|count|twist|spin/.test(text)) return 'SPINNING_DEFECT';
+  return 'QUALITY_FAILURE';
+}
+
 export async function inspectRoll(tx: Tx, id: string, input: { result: string; defects: string[]; notes: string }, actor: Actor) {
   const roll = await tx.fabricRoll.findUnique({ where: { id }, include: { production: true } });
   ensure(roll, 'Roll not found.', 404);
@@ -28,7 +37,7 @@ export async function inspectRoll(tx: Tx, id: string, input: { result: string; d
       data: {
         rollId: id,
         productionId: production.id,
-        defectType: 'QUALITY_FAILURE',
+        defectType: defectTypeOf(input.defects),
         reason: input.defects.join(', '),
         fromStage: 'QUALITY',
         quantity: roll.length,

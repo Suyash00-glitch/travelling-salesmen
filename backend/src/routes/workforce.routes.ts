@@ -1,10 +1,11 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
-import { authorize } from '../middleware/auth.js';
+import { authorize, authorizeAny } from '../middleware/auth.js';
 import { audit } from '../lib/domain.js';
 import { page, write, id, empty } from '../lib/route-helpers.js';
-import { checkIn, checkOut, addOvertime, correctAttendance, shiftBoard } from '../services/workforce.service.js';
+import { checkIn, checkOut, addOvertime, correctAttendance, shiftBoard, shiftReport, createShift, updateShift } from '../services/workforce.service.js';
 
 export const workforceRouter = Router();
 
@@ -35,6 +36,18 @@ workforceRouter.get('/workers', authorize('workforce'), async (req, res) => {
 workforceRouter.get('/shifts/board', authorize('workforce'), async (_req, res) => {
   res.json(await shiftBoard());
 });
+
+// What happened in every shift of a day (default today), plus a week of output per shift.
+workforceRouter.get('/shifts/report', authorizeAny(['workforce', 'reports']), async (req, res) => {
+  const date = req.query.date ? z.string().date().parse(req.query.date) : undefined;
+  res.json(await shiftReport(date));
+});
+
+// Shift set-up is an administrator's job.
+write(workforceRouter, '/shifts', 'settings:manage', contracts.shiftSchema, (tx, input, actor) => createShift(tx, input, actor));
+write(workforceRouter, '/shifts/:id/update', 'settings:manage', contracts.shiftUpdateSchema, (tx, input, actor, req) =>
+  updateShift(tx, id(req), input, actor),
+);
 
 // Register worker profile
 write(workforceRouter, '/workers', 'settings:manage', contracts.workerSchema, async (tx, input, actor) => {

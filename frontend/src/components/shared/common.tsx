@@ -120,7 +120,7 @@ export function Panel({
           {action}
         </div>
       )}
-      {children}
+      <div className="panel-body">{children}</div>
     </section>
   );
 }

@@ -171,11 +171,21 @@ const orderStageNames: Record<string, string> = {
 };
 
 export async function orderSummaries(user: CurrentUser) {
-  const orders = await db.salesOrder.findMany({
-    where: user.role === 'BUYER' ? { buyerId: user.buyerId ?? 'none' } : {},
-    include: orderInclude,
-    orderBy: { createdAt: 'desc' },
-  });
+  const buyer = user.role === 'BUYER';
+  const [orders, lots] = await Promise.all([
+    db.salesOrder.findMany({
+      where: buyer ? { buyerId: user.buyerId ?? 'none' } : {},
+      include: orderInclude,
+      orderBy: { createdAt: 'desc' },
+    }),
+    buyer ? [] : db.yarnLot.findMany({ select: { material: true, specification: true, onHand: true, reserved: true } }),
+  ]);
+  // Free yarn in the store per material, to answer "can we start this order?".
+  const free = new Map<string, Prisma.Decimal>();
+  for (const l of lots) {
+    const key = `${l.material} · ${l.specification}`;
+    free.set(key, (free.get(key) ?? D(0)).plus(l.onHand.minus(l.reserved)));
+  }
 
   return orders.map((order) => {
     const quantity = sum(order.items.map((i) => i.quantity));
@@ -183,7 +193,7 @@ export async function orderSummaries(user: CurrentUser) {
     const rolls = batches.flatMap((p) => p.rolls);
     const produced = sum(rolls.map((r) => r.length));
     const approved = sum(rolls.filter((r) => r.quality === 'PASSED').map((r) => r.length));
-    const dispatched = sum(order.shipments.filter((s) => s.status === 'DISPATCHED').map((s) => s.quantity));
+    const dispatched = sum(order.shipments.filter((s) => ['DISPATCHED', 'DELIVERED'].includes(s.status)).map((s) => s.quantity));
     const jobs = batches.flatMap((p) => p.jobs);
     const reasons: string[] = [];
     const remaining = quantity.minus(produced);
@@ -200,9 +210,31 @@ export async function orderSummaries(user: CurrentUser) {
       reasons.push('Remaining output exceeds one-shift capacity before deadline');
     }
 
+    // Yarn still needed by lines whose first stage has not used its yarn yet, against free stock.
+    let yarn: { status: 'ENOUGH' | 'SHORT' | 'IN_HAND'; neededKg: string; shortKg: string; material: string } | null = null;
+    if (!buyer && !['COMPLETED', 'CANCELLED'].includes(order.status)) {
+      const needs = new Map<string, Prisma.Decimal>();
+      for (const i of order.items) {
+        if (i.production?.jobs.some((j) => j.sequence === 0 && j.status === 'COMPLETED')) continue;
+        const required = i.quantity.mul(i.recipe.kgPerMetre).mul(D(1).plus(i.recipe.wastePercent.div(100)));
+        const held = sum(i.production?.reservations.map((r) => (r.released ? r.consumed : r.quantity)) ?? []);
+        const key = `${i.recipe.material} · ${i.recipe.specification}`;
+        needs.set(key, (needs.get(key) ?? D(0)).plus(Prisma.Decimal.max(required.minus(held), 0)));
+      }
+      const needed = sum([...needs.values()]);
+      const short = sum([...needs.entries()].map(([key, kg]) => Prisma.Decimal.max(kg.minus(free.get(key) ?? 0), 0)));
+      yarn = {
+        status: needed.lte(0) ? 'IN_HAND' : short.gt(0) ? 'SHORT' : 'ENOUGH',
+        neededKg: needed.toFixed(1),
+        shortKg: short.toFixed(1),
+        material: [...needs.keys()].join(', '),
+      };
+    }
+
     return {
       id: order.id,
       number: order.number,
+      yarn,
       buyer: { id: order.buyer.id, name: order.buyer.name, initials: order.buyer.initials, city: order.buyer.city },
       status: order.status,
       priority: order.priority,

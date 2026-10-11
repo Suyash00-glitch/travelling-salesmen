@@ -1,5 +1,6 @@
 import { db, type Tx } from '@loomos/db';
-import { audit, businessDay, D, ensure, sum, type Actor } from '../lib/domain.js';
+import { factoryToday, type ShiftInput } from '@loomos/shared';
+import { audit, businessDay, calendarDate, D, dayStart, ensure, sum, type Actor } from '../lib/domain.js';
 import { notify, managers } from './notification.service.js';
 
 // Shifts and attendance. The shift supervisor checks workers in and out; production can only
@@ -7,16 +8,18 @@ import { notify, managers } from './notification.service.js';
 // so night shifts (e.g. 22:00 + 8 h) simply run past midnight.
 
 const HOUR = 3600000;
+const DAY = 24 * HOUR;
 const GRACE = 60 * 60000; // check-in allowed up to an hour before the shift starts
 
 interface ShiftRow { id: string; name: string; startHour: number; hours: { toNumber(): number } }
 
-// The most recent start of a shift at or before `now`, and its end.
+// The most recent start of a shift at or before `now`, and its end. `date` is the calendar day
+// the shift started on (attendance is filed under it).
 export function shiftWindow(shift: ShiftRow, now = new Date()) {
   const start = new Date(businessDay(now).getTime() + shift.startHour * HOUR);
-  if (start.getTime() > now.getTime() + GRACE) start.setTime(start.getTime() - 24 * HOUR);
+  if (start.getTime() > now.getTime() + GRACE) start.setTime(start.getTime() - DAY);
   const end = new Date(start.getTime() + shift.hours.toNumber() * HOUR);
-  return { start, end, date: businessDay(start) };
+  return { start, end, date: calendarDate(start) };
 }
 
 export function shiftState(shift: ShiftRow, now = new Date()) {
@@ -27,7 +30,7 @@ export function shiftState(shift: ShiftRow, now = new Date()) {
 }
 
 export async function currentShift(now = new Date()) {
-  const shifts = await db.shift.findMany({ orderBy: { startHour: 'asc' } });
+  const shifts = await db.shift.findMany({ where: { active: true }, orderBy: { startHour: 'asc' } });
   return shifts.find((s) => shiftState(s, now) === 'CURRENT') ?? null;
 }
 
@@ -53,7 +56,7 @@ export async function checkIn(tx: Tx, input: { workerId: string; shiftId: string
   const worker = await tx.worker.findUnique({ where: { id: input.workerId } });
   ensure(worker?.active, 'Worker is not available.', 404);
   const shift = await tx.shift.findUnique({ where: { id: input.shiftId } });
-  ensure(shift, 'Shift not found.', 404);
+  ensure(shift?.active, 'Shift not found.', 404);
 
   const now = new Date();
   const { start, end, date } = shiftWindow(shift, now);
@@ -80,7 +83,7 @@ export async function checkOut(tx: Tx, attendanceId: string, actor: Actor) {
   const now = new Date();
   const session = Math.round(((now.getTime() - attendance.checkInAt.getTime()) / HOUR) * 4) / 4;
   const hours = D(Math.min(16, Math.max(0, session) + attendance.hours.toNumber()));
-  const wage = await wageFor(tx, attendance.worker, hours, attendance.date);
+  const wage = await wageFor(tx, attendance.worker, hours.plus(attendance.overtimeHours), attendance.date);
 
   // Nobody can be running a machine after they have left: the job is paused and the machine freed.
   // The supervisor hands it over to the next shift, or the manager reassigns it.
@@ -132,7 +135,7 @@ export async function correctAttendance(tx: Tx, attendanceId: string, input: { h
   ensure(attendance, 'Attendance record not found.', 404);
   ensure(input.status === 'PRESENT' || input.hours === 0, 'Absent workers must have zero hours.');
   const hours = D(input.hours);
-  const wage = await wageFor(tx, attendance.worker, hours, attendance.date);
+  const wage = await wageFor(tx, attendance.worker, input.status === 'PRESENT' ? hours.plus(attendance.overtimeHours) : D(0), attendance.date);
   const updated = await tx.attendance.update({
     where: { id: attendanceId },
     data: {
@@ -147,9 +150,12 @@ export async function correctAttendance(tx: Tx, attendanceId: string, input: { h
   return updated;
 }
 
+// Hourly workers are paid for hours (overtime included); piece-rate workers for the metres
+// they produced during that shift day.
 async function wageFor(tx: Tx, worker: { id: string; rate: { mul(v: unknown): unknown }; wageType: string }, hours: { toNumber(): number }, day: Date) {
+  const from = dayStart(day);
   const entries = await tx.productionEntry.findMany({
-    where: { job: { workerId: worker.id }, createdAt: { gte: day, lt: new Date(day.getTime() + 24 * HOUR) } },
+    where: { job: { workerId: worker.id }, createdAt: { gte: from, lt: new Date(from.getTime() + DAY + 8 * HOUR) } },
   });
   const metres = sum(entries.map((e) => e.quantity));
   const amount = (worker.wageType === 'HOURLY' ? worker.rate.mul(hours) : worker.rate.mul(metres)) as never;
@@ -162,7 +168,7 @@ async function wageFor(tx: Tx, worker: { id: string; rate: { mul(v: unknown): un
 
 // Who is scheduled and present on the current shift, for the supervisor dashboard.
 export async function shiftBoard(now = new Date()) {
-  const shifts = await db.shift.findMany({ orderBy: { startHour: 'asc' } });
+  const shifts = await db.shift.findMany({ where: { active: true }, orderBy: { startHour: 'asc' } });
   const shift = shifts.find((s) => shiftState(s, now) === 'CURRENT') ?? null;
   const open = await db.attendance.findMany({
     where: { checkInAt: { not: null }, checkOutAt: null },
@@ -173,4 +179,124 @@ export async function shiftBoard(now = new Date()) {
     shifts: shifts.map((s) => ({ id: s.id, name: s.name, startHour: s.startHour, hours: s.hours.toString(), state: shiftState(s, now) })),
     checkedIn: open.map((a) => ({ attendanceId: a.id, worker: a.worker, shift: a.shift, since: a.checkInAt })),
   };
+}
+
+// ==================== SHIFT SET-UP (administrators) ====================
+
+export async function createShift(tx: Tx, input: ShiftInput, actor: Actor) {
+  ensure(!(await tx.shift.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' }, active: true } })), 'A shift with this name already exists.');
+  const shift = await tx.shift.create({ data: input });
+  await audit(tx, actor, 'shift.created', shift.id, `${shift.name} · ${String(shift.startHour).padStart(2, '0')}:00 for ${input.hours} h`);
+  return shift;
+}
+
+export async function updateShift(tx: Tx, id: string, input: Partial<ShiftInput> & { active?: boolean }, actor: Actor) {
+  const shift = await tx.shift.findUnique({ where: { id } });
+  ensure(shift, 'Shift not found.', 404);
+  if (input.active === false || input.startHour !== undefined || input.hours !== undefined) {
+    const open = await tx.attendance.count({ where: { shiftId: id, checkInAt: { not: null }, checkOutAt: null } });
+    ensure(!open, `${open} worker(s) are checked in on ${shift.name}. Check them out before changing the shift.`);
+  }
+  const updated = await tx.shift.update({ where: { id }, data: input });
+  await audit(tx, actor, 'shift.updated', id, `${updated.name} · ${String(updated.startHour).padStart(2, '0')}:00 for ${updated.hours.toString()} h${updated.active ? '' : ' · retired'}`);
+  return updated;
+}
+
+// ==================== SHIFT REPORT ====================
+
+const dayFormat = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' });
+const dayLabel = (d: Date) => dayFormat.format(d);
+const eventKinds = ['production.', 'machine.', 'attendance.', 'quality.', 'shipment.', 'dispatch.', 'inventory.received'];
+
+// What happened in every shift of one day: who worked, what was made where, breakdowns,
+// inspections, wages and a timeline. Plus metres per shift for the seven days up to that day.
+export async function shiftReport(ymd = factoryToday(), now = new Date()) {
+  const dayIst = new Date(`${ymd}T00:00:00+05:30`);
+  const shifts = await db.shift.findMany({ orderBy: { startHour: 'asc' } });
+  const windowOf = (s: (typeof shifts)[number], day: Date) => {
+    const start = new Date(day.getTime() + s.startHour * HOUR);
+    return { start, end: new Date(start.getTime() + s.hours.toNumber() * HOUR) };
+  };
+  const windows = shifts.map((s) => ({ shift: s, ...windowOf(s, dayIst) }));
+  const from = new Date(Math.min(dayIst.getTime(), ...windows.map((w) => w.start.getTime())));
+  const to = new Date(Math.max(dayIst.getTime() + DAY, ...windows.map((w) => w.end.getTime())));
+  const range = { gte: from, lt: to };
+
+  const [attendance, entries, started, finished, breakdowns, inspections, logs] = await Promise.all([
+    db.attendance.findMany({ where: { date: new Date(`${ymd}T00:00:00Z`) }, include: { worker: true, wage: true }, orderBy: { checkInAt: 'asc' } }),
+    db.productionEntry.findMany({ where: { createdAt: range }, include: { job: { select: { stage: true, machine: { select: { code: true } } } } } }),
+    db.jobCard.findMany({ where: { startedAt: range }, select: { startedAt: true } }),
+    db.jobCard.findMany({ where: { endedAt: range, status: 'COMPLETED' }, select: { endedAt: true } }),
+    db.downtimeEvent.findMany({ where: { startedAt: range, kind: 'BREAKDOWN' }, include: { machine: { select: { code: true } } } }),
+    db.qualityInspection.findMany({ where: { createdAt: range }, select: { result: true, createdAt: true } }),
+    db.auditLog.findMany({ where: { createdAt: range, OR: eventKinds.map((k) => ({ action: { startsWith: k } })) }, orderBy: { createdAt: 'asc' } }),
+  ]);
+  const inside = (at: Date | null, w: { start: Date; end: Date }) => Boolean(at && at >= w.start && at < w.end);
+
+  const report = windows
+    .filter((w) => w.shift.active || attendance.some((a) => a.shiftId === w.shift.id))
+    .map((w) => {
+      const people = attendance.filter((a) => a.shiftId === w.shift.id);
+      const made = entries.filter((e) => inside(e.createdAt, w));
+      const machines = new Map<string, { code: string; stage: string; output: number; hours: number }>();
+      for (const e of made) {
+        const key = e.job.machine?.code ?? 'Floor';
+        const row = machines.get(key) ?? { code: key, stage: e.job.stage, output: 0, hours: 0 };
+        row.output += e.quantity.toNumber();
+        row.hours += e.hours.toNumber();
+        machines.set(key, row);
+      }
+      const checks = inspections.filter((i) => inside(i.createdAt, w));
+      const state: 'UPCOMING' | 'CURRENT' | 'COMPLETED' = now < w.start ? 'UPCOMING' : now >= w.end ? 'COMPLETED' : 'CURRENT';
+      return {
+        id: w.shift.id,
+        name: w.shift.name,
+        start: w.start.toISOString(),
+        end: w.end.toISOString(),
+        state,
+        present: people.filter((a) => a.status === 'PRESENT').map((a) => ({
+          worker: a.worker.name,
+          designation: a.worker.designation,
+          checkInAt: a.checkInAt?.toISOString() ?? null,
+          checkOutAt: a.checkOutAt?.toISOString() ?? null,
+          hours: a.hours.toNumber(),
+          overtime: a.overtimeHours.toNumber(),
+          status: a.status,
+        })),
+        absent: people.filter((a) => a.status !== 'PRESENT').length,
+        output: sum(made.map((e) => e.quantity)).toNumber(),
+        waste: sum(made.map((e) => e.waste)).toNumber(),
+        byStage: ['SPINNING', 'WEAVING', 'DYEING'].map((stage) => ({ stage, output: sum(made.filter((e) => e.job.stage === stage).map((e) => e.quantity)).toNumber() })),
+        byMachine: [...machines.values()].sort((a, b) => a.code.localeCompare(b.code)),
+        started: started.filter((j) => inside(j.startedAt, w)).length,
+        finished: finished.filter((j) => inside(j.endedAt, w)).length,
+        breakdowns: breakdowns.filter((b) => inside(b.startedAt, w)).map((b) => ({ machine: b.machine.code, reason: b.reason, at: b.startedAt.toISOString(), resolved: Boolean(b.endedAt) })),
+        inspections: {
+          passed: checks.filter((i) => i.result === 'PASSED').length,
+          rework: checks.filter((i) => i.result === 'REWORK').length,
+          rejected: checks.filter((i) => i.result === 'REJECTED').length,
+        },
+        wages: sum(people.map((a) => a.wage?.amount ?? D(0))).toNumber(),
+        events: logs.filter((l) => inside(l.createdAt, w)).slice(-40).reverse().map((l) => ({ at: l.createdAt.toISOString(), text: l.detail, who: l.actorName, kind: l.action.split('.')[0] })),
+      };
+    });
+
+  // Seven days of output, split by shift.
+  const active = shifts.filter((s) => s.active);
+  const firstDay = new Date(dayIst.getTime() - 6 * DAY);
+  const weekEntries = await db.productionEntry.findMany({
+    where: { createdAt: { gte: firstDay, lt: to } },
+    select: { quantity: true, createdAt: true },
+  });
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(firstDay.getTime() + i * DAY);
+    const row: Record<string, string | number> = { date: day.toISOString(), label: dayLabel(day) };
+    for (const s of active) {
+      const w = windowOf(s, day);
+      row[s.name] = sum(weekEntries.filter((e) => inside(e.createdAt, w)).map((e) => e.quantity)).toNumber();
+    }
+    return row;
+  });
+
+  return { date: ymd, shifts: report, week, shiftNames: active.map((s) => s.name) };
 }

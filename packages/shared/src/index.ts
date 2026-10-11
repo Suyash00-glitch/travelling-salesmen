@@ -127,6 +127,44 @@ export const ROLE_PERMISSIONS_TEMPLATE: Record<Role, string[]> = {
 
 export const isStandardRole = (code: string): code is Role => code in ROLE_PERMISSIONS_TEMPLATE;
 
+// Plain names and one-line duties for every standard role (shown when creating users).
+export const roleNames: Record<Role, string> = {
+  SUPER_ADMIN: 'Super Administrator',
+  ADMIN: 'Administrator',
+  OPERATIONS_MANAGER: 'Operations Manager',
+  PRODUCTION_MANAGER: 'Production Manager',
+  INVENTORY_MANAGER: 'Inventory Manager',
+  PROCUREMENT_MANAGER: 'Procurement Manager',
+  SPINNING_OPERATOR: 'Spinning Operator',
+  WEAVING_OPERATOR: 'Weaving Operator',
+  DYEING_OPERATOR: 'Dyeing Operator',
+  QUALITY_INSPECTOR: 'Quality Inspector',
+  DISPATCH_MANAGER: 'Dispatch Manager',
+  SHIFT_SUPERVISOR: 'Shift Supervisor',
+  MAINTENANCE_ENGINEER: 'Maintenance Engineer',
+  ACCOUNTS_MANAGER: 'Accounts Manager',
+  BUYER: 'Buyer',
+};
+export const roleDuties: Record<Role, string> = {
+  SUPER_ADMIN: 'Everything: users, prices, machines, accounts',
+  ADMIN: 'Everything: users, prices, machines, accounts',
+  OPERATIONS_MANAGER: 'Accepts orders and watches the whole mill',
+  PRODUCTION_MANAGER: 'Plans batches, assigns machines and operators, decides rework',
+  INVENTORY_MANAGER: 'Receives, reserves and corrects yarn stock',
+  PROCUREMENT_MANAGER: 'Raises purchase orders and manages suppliers',
+  SPINNING_OPERATOR: 'Runs spinning jobs assigned to them',
+  WEAVING_OPERATOR: 'Runs weaving jobs assigned to them',
+  DYEING_OPERATOR: 'Runs dyeing jobs assigned to them',
+  QUALITY_INSPECTOR: 'Inspects rolls and sends failures back',
+  DISPATCH_MANAGER: 'Loads trucks, confirms dispatch and delivery',
+  SHIFT_SUPERVISOR: 'Checks workers in and out, hands over shifts, reports breakdowns',
+  MAINTENANCE_ENGINEER: 'Maintains machines and confirms repairs',
+  ACCOUNTS_MANAGER: 'Invoices, payments, bills, wages and claims',
+  BUYER: 'Places orders and tracks their own deliveries',
+};
+// Roles whose person works on the floor and must be linked to a worker record.
+export const floorRoles: Role[] = ['SPINNING_OPERATOR', 'WEAVING_OPERATOR', 'DYEING_OPERATOR', 'SHIFT_SUPERVISOR'];
+
 export interface CurrentUser {
   id: string;
   name: string;
@@ -262,7 +300,9 @@ export const orderSchema = z.object({
   instructions: z.string().max(2000).default(''),
   items: z.array(z.object({ recipeId: text, color: text, quantity: positive })).min(1).max(20),
 });
-export const receiptSchema = z.object({ supplierId: text, purchaseId: z.string().optional(), reference: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, location: text, threshold: z.coerce.number().min(0).default(100) });
+const blankToUndefined = z.string().trim().optional().transform((v) => v || undefined);
+// Yarn at the gate: how much, what type and colour, and (optionally) which order it is for.
+export const receiptSchema = z.object({ supplierId: text, purchaseId: blankToUndefined, orderId: blankToUndefined, reference: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, location: text, threshold: z.coerce.number().min(0).default(100) });
 export const reservationSchema = z.object({ productionId: text, lotId: text, quantity: positive });
 // Machine and operator are both required. The shift comes from the operator's check-in.
 export const assignmentSchema = z.object({ machineId: text, workerId: text, reason: z.string().trim().max(500).default('') });
@@ -292,7 +332,31 @@ export const overtimeSchema = z.object({ extraHours: z.coerce.number().min(0.5).
 export const purchaseSchema = z.object({ supplierId: text, material: text, color: text, specification: text, quantity: positive, costPerKg: money, expectedAt: z.string().date() });
 export const workerSchema = z.object({ name: text, designation: text, wageType: z.enum(['HOURLY', 'PIECE']), rate: money, departmentId: z.string().optional() });
 export const partySchema = z.object({ name: text, email: z.string().email(), city: text });
+export const expenseCategories = ['Utilities', 'Rent', 'Transport', 'Maintenance', 'Salaries', 'Office', 'Other'] as const;
 export const expenseSchema = z.object({ category: text, description: text, amount: money });
+
+// Bills the mill has to pay. Yarn receipts create their own; everything else is entered here.
+export const billCategories = ['YARN', 'DYES_CHEMICALS', 'SPARES', 'POWER', 'TRANSPORT', 'SERVICES', 'OTHER'] as const;
+export const billSchema = z.object({
+  supplierId: text,
+  number: text,
+  category: z.enum(billCategories),
+  description: z.string().trim().max(500).default(''),
+  amount: money,
+  billDate: z.string().date().refine((d) => d <= factoryToday(), { message: 'The bill date cannot be in the future.' }),
+  dueDate: z.string().date().optional().or(z.literal('').transform(() => undefined)),
+});
+
+// Shifts: a start hour and a length. Night shifts simply run past midnight.
+export const shiftSchema = z.object({
+  name: text,
+  startHour: z.coerce.number().int().min(0).max(23),
+  hours: z.coerce.number().min(1).max(16),
+});
+export const shiftUpdateSchema = shiftSchema.partial().extend({ active: z.coerce.boolean().optional() });
+
+// Defects an inspector can tick. "Other" needs a note.
+export const defectChoices = ['Holes', 'Colour mismatch', 'Uneven weaving', 'Stains', 'Broken picks', 'Weft bar', 'Slubs', 'Other'] as const;
 export const claimSchema = z.object({
   party: z.enum(['BUYER', 'SUPPLIER']),
   buyerId: z.string().optional(),
@@ -446,6 +510,8 @@ export const replacementSchema = z.object({
 });
 
 export type OrderInput = z.infer<typeof orderSchema>;
+export type BillInput = z.infer<typeof billSchema>;
+export type ShiftInput = z.infer<typeof shiftSchema>;
 export type StandaloneBatchInput = z.infer<typeof standaloneBatchSchema>;
 export type ReworkRequestInput = z.infer<typeof reworkRequestSchema>;
 export type IssueInput = z.infer<typeof issueSchema>;
@@ -453,7 +519,7 @@ export type ReceiptInput = z.infer<typeof receiptSchema>;
 export type OutputInput = z.infer<typeof outputSchema>;
 export type CompleteInput = z.infer<typeof completeSchema>;
 export interface PageResponse<T> { data: T[]; total: number; page: number; pageSize: number }
-export interface OrderSummary { id: string; number: string; buyer: { id: string; name: string; initials: string; city: string }; status: string; priority: string; deadline: string; createdAt: string; instructions: string; quantity: string; value?: string; produced: string; approved: string; dispatched: string; progress: number; stage: string; risk: { level: string; reasons: string[] }; items: OrderItem[] }
+export interface OrderSummary { id: string; number: string; yarn?: { status: 'ENOUGH' | 'SHORT' | 'IN_HAND'; neededKg: string; shortKg: string; material: string } | null; buyer: { id: string; name: string; initials: string; city: string }; status: string; priority: string; deadline: string; createdAt: string; instructions: string; quantity: string; value?: string; produced: string; approved: string; dispatched: string; progress: number; stage: string; risk: { level: string; reasons: string[] }; items: OrderItem[] }
 export interface OrderItem { id: string; fabric: string; color: string; quantity: string; price: string; recipeId: string; recipe: { name: string; specification: string }; production: ProductionSummary | null }
 export interface ProductionSummary { id: string; number: string; status: string; target: string; jobs: JobSummary[] }
 export interface JobSummary { id: string; stage: string; sequence: number; status: string; target: string; output: string; machineId: string | null; workerId: string | null; shiftId: string | null; machine?: MachineSummary | null; worker?: { name: string } | null; production?: BatchRef }
@@ -465,8 +531,30 @@ export interface Lookups { buyers: Lookup[]; suppliers: Lookup[]; recipes: (Look
 // Short description of a production batch. `order` is null for standalone (stock / internal) batches.
 export interface BatchRef { id: string; number: string; fabric: string; color: string; recipeId: string; purpose: string; order: { id: string; number: string; buyer: { id: string; name: string } } | null }
 
+export interface ShiftReportShift {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+  state: 'UPCOMING' | 'CURRENT' | 'COMPLETED';
+  present: { worker: string; designation: string; checkInAt: string | null; checkOutAt: string | null; hours: number; overtime: number; status: string }[];
+  absent: number;
+  output: number;
+  waste: number;
+  byStage: { stage: string; output: number }[];
+  byMachine: { code: string; stage: string; output: number; hours: number }[];
+  started: number;
+  finished: number;
+  breakdowns: { machine: string; reason: string; at: string; resolved: boolean }[];
+  inspections: { passed: number; rework: number; rejected: number };
+  wages: number;
+  events: { at: string; text: string; who: string; kind: string }[];
+}
+export interface ShiftReport { date: string; shifts: ShiftReportShift[]; week: Record<string, string | number>[]; shiftNames: string[] }
+// One month of money: sales against bills, wages and expenses.
+export interface MonthMoney { month: string; label: string; sales: number; received: number; yarnBills: number; otherBills: number; wages: number; expenses: number; spend: number; profit: number; cash: number }
 export interface Alert { id: string; title: string; description: string; severity: 'warning' | 'danger' | 'success'; href: string }
-export interface Dashboard { activeOrders: number; dueSoon: number; delayed: number; availableYarn: string; todayOutput: string; previousOutput: string; pendingQuality: number; passed: number; rejected: number; finishedRolls: number; pendingDispatch: number; running: number; idle: number; breakdown: number; totalMachines: number; series: { date: string; label: string; output: number; target: number }[]; orders: OrderSummary[]; machines: MachineSummary[]; alerts: Alert[]; activity: { id: string; action: string; detail: string; actorName: string; createdAt: string }[]; finance?: { billed: string; received: string; cost: string; outstanding: string; overdue: string; overdueCount: number; expenses: string; pendingClaims: number; pendingInvoices: number }; date: string }
+export interface Dashboard { activeOrders: number; dueSoon: number; delayed: number; availableYarn: string; todayOutput: string; previousOutput: string; pendingQuality: number; passed: number; rejected: number; finishedRolls: number; pendingDispatch: number; running: number; idle: number; breakdown: number; totalMachines: number; series: { date: string; label: string; output: number; target: number }[]; orders: OrderSummary[]; machines: MachineSummary[]; alerts: Alert[]; activity: { id: string; action: string; detail: string; actorName: string; createdAt: string }[]; finance?: { billed: string; received: string; cost: string; outstanding: string; overdue: string; overdueCount: number; expenses: string; pendingClaims: number; pendingInvoices: number; billsDue: string; billsDueCount: number; pnl: MonthMoney; trend: MonthMoney[]; spendBreakdown: { key: string; name: string; value: number }[] }; date: string }
 
 export interface RoleDetail {
   id: string;

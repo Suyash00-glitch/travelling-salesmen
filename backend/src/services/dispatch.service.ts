@@ -78,7 +78,7 @@ export async function confirmShipment(tx: Tx, id: string, actor: Actor) {
   await tx.shipment.update({ where: { id }, data: { status: 'DISPATCHED', confirmedAt: new Date() } });
   await tx.fabricRoll.updateMany({ where: { activeShipmentId: id }, data: { location: 'Dispatched' } });
 
-  const shipped = sum(shipment.order.shipments.filter((s) => s.status === 'DISPATCHED').map((s) => s.quantity)).plus(shipment.quantity);
+  const shipped = sum(shipment.order.shipments.filter((s) => ['DISPATCHED', 'DELIVERED'].includes(s.status)).map((s) => s.quantity)).plus(shipment.quantity);
   await tx.salesOrder.update({ where: { id: shipment.orderId }, data: { status: shipped.eq(sum(shipment.order.items.map((i) => i.quantity))) ? 'COMPLETED' : 'PARTIAL' } });
   await audit(tx, actor, 'shipment.confirmed', id, `${shipment.number} · ${shipment.quantity} m dispatched and invoiced`);
   await audit(tx, actor, 'shipment.confirmed', shipment.orderId, `${shipment.number} · ${shipment.quantity} m dispatched`);
@@ -105,7 +105,7 @@ export async function cancelShipment(tx: Tx, id: string, reason: string, actor: 
   await tx.shipment.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancellationReason: reason } });
   await tx.fabricRoll.updateMany({ where: { activeShipmentId: id }, data: { activeShipmentId: null, location: 'Warehouse A · Finished goods' } });
 
-  const remaining = await tx.shipment.count({ where: { orderId: shipment.orderId, status: 'DISPATCHED' } });
+  const remaining = await tx.shipment.count({ where: { orderId: shipment.orderId, status: { in: ['DISPATCHED', 'DELIVERED'] } } });
   await tx.salesOrder.update({ where: { id: shipment.orderId }, data: { status: remaining ? 'PARTIAL' : 'READY' } });
   await audit(tx, actor, 'shipment.cancelled', id, reason);
   return { id };

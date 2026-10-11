@@ -8,6 +8,7 @@ import { label } from '../../lib/utils';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { NotificationsModal } from './NotificationsModal';
 import { HelpModal } from './HelpModal';
+import { QuickAdd } from './QuickAdd';
 interface NavSection {
     name: string;
     items: [
@@ -179,6 +180,7 @@ export function Workspace() {
           </div>
 
           <div className="topbar-actions">
+            {user.role !== 'BUYER' && <QuickAdd user={user} orders={orders.data?.data ?? []} />}
             <button className="global-search" onClick={() => setSearch(true)}>
               <Search size={16}/>
               <span>Search anything...</span>

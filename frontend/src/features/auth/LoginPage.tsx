@@ -7,7 +7,6 @@ import {
   Check,
   Eye,
   EyeOff,
-  UserCheck,
 } from 'lucide-react';
 import { api, setCsrf } from '../../services/api';
 import { Button } from '../../components/ui/button';
@@ -20,34 +19,11 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps) {
-  const [email, setEmail] = useState('owner@loomos.demo');
-  const [password, setPassword] = useState('LoomDemo2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  const demoAccounts = [
-    { label: 'Super Admin', email: 'owner@loomos.demo' },
-    { label: 'Operations Mgr', email: 'operations@loomos.demo' },
-    { label: 'Production Mgr', email: 'production@loomos.demo' },
-    { label: 'Inventory Mgr', email: 'inventory@loomos.demo' },
-    { label: 'Procurement Mgr', email: 'procurement@loomos.demo' },
-    { label: 'Spinning Operator', email: 'spinning@loomos.demo' },
-    { label: 'Weaving Operator', email: 'weaving@loomos.demo' },
-    { label: 'Dyeing Operator', email: 'dyeing@loomos.demo' },
-    { label: 'Quality Inspector', email: 'quality@loomos.demo' },
-    { label: 'Dispatch Mgr', email: 'dispatch@loomos.demo' },
-    { label: 'Shift Supervisor', email: 'supervisor@loomos.demo' },
-    { label: 'Accounts Mgr', email: 'accounts@loomos.demo' },
-    { label: 'Buyer Portal', email: 'buyer@loomos.demo' },
-    { label: 'Buyer · Fabindia', email: 'fabindia@loomos.demo' },
-  ];
-
-  const handleSelectDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('LoomDemo2026!');
-    setError('');
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -153,38 +129,6 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps
               </div>
             </label>
 
-            {/* Quick-fill Demo accounts pills */}
-            <div style={{ margin: '8px 0 16px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '12px',
-                  color: 'var(--muted)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  marginBottom: '6px',
-                }}
-              >
-                <UserCheck size={13} />
-                <span>Quick Fill Demo Roles</span>
-              </div>
-              <div className="demo-pills">
-                {demoAccounts.map((acc) => (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => handleSelectDemo(acc.email)}
-                    className={`demo-pill ${email === acc.email ? 'active' : ''}`}
-                  >
-                    {acc.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {error && <div className="error-banner">{error}</div>}
 
             <Button className="login-submit" disabled={busy}>
@@ -201,19 +145,12 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps
 
           {onSignup && (
             <div className="auth-switch">
-              New to the factory?
-              <button type="button" onClick={onSignup}>Request an account</button>
-              {onBuyerSignup && <> · Buyer? <button type="button" onClick={onBuyerSignup}>Create a buyer account</button></>}
+              <span>New here?</span>
+              <button type="button" onClick={onSignup}>Request a staff account</button>
+              {onBuyerSignup && <><span>·</span><button type="button" onClick={onBuyerSignup}>Create a buyer account</button></>}
+              <small>An administrator approves every new account.</small>
             </div>
           )}
-
-          <div className="login-demo">
-            <span className="demo-dot" />
-            <div>
-              <strong>Demonstration workspace</strong>
-              <p>Demo accounts use password: <code className="audit-code">LoomDemo2026!</code></p>
-            </div>
-          </div>
 
           <div className="login-points">
             <span>

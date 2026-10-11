@@ -7,10 +7,12 @@ import {
   permissionActions,
   ROLE_PERMISSIONS_TEMPLATE,
   standardRoles,
+  roleNames,
+  roleDuties,
   type Role,
 } from '@loomos/shared';
 import { createOrder, planOrder } from '../../../backend/src/services/order.service.js';
-import { receiveYarn, reserveYarn } from '../../../backend/src/services/inventory.service.js';
+import { reserveYarn } from '../../../backend/src/services/inventory.service.js';
 import { assignJob, startJob, recordOutput, completeJob } from '../../../backend/src/services/production.service.js';
 import { shiftState, shiftWindow } from '../../../backend/src/services/workforce.service.js';
 import { inspectRoll } from '../../../backend/src/services/quality.service.js';
@@ -18,6 +20,7 @@ import { createShipment, verifyRoll, confirmShipment } from '../../../backend/sr
 import { buyerPayment } from '../../../backend/src/services/finance.service.js';
 import { reportBreakdown } from '../../../backend/src/services/machine.service.js';
 import { D } from '../../../backend/src/lib/domain.js';
+import { seedHistory } from './seed-history.js';
 
 export async function seedRbacAndFacilities(tx: Tx) {
   // 1. Seed Factory
@@ -63,24 +66,7 @@ export async function seedRbacAndFacilities(tx: Tx) {
   }
 
   // 4. Seed Standard Roles
-  const roleDisplayNames: Record<string, string> = {
-    SUPER_ADMIN: 'Super Administrator',
-    ADMIN: 'System Administrator',
-    OPERATIONS_MANAGER: 'Operations Manager',
-    PRODUCTION_MANAGER: 'Production Manager',
-    INVENTORY_MANAGER: 'Inventory Manager',
-    PROCUREMENT_MANAGER: 'Procurement Manager',
-    SPINNING_OPERATOR: 'Spinning Operator',
-    WEAVING_OPERATOR: 'Weaving Operator',
-    DYEING_OPERATOR: 'Dyeing Operator',
-    OPERATOR: 'Floor Operator',
-    QUALITY_INSPECTOR: 'Quality Inspector',
-    DISPATCH_MANAGER: 'Dispatch Manager',
-    SHIFT_SUPERVISOR: 'Shift Supervisor',
-    MAINTENANCE_ENGINEER: 'Maintenance Engineer',
-    ACCOUNTS_MANAGER: 'Accounts Manager',
-    BUYER: 'Buyer Portal User',
-  };
+  const roleDisplayNames: Record<string, string> = roleNames;
 
   const seededRoles: Record<string, string> = {};
   for (const roleCode of standardRoles) {
@@ -88,13 +74,13 @@ export async function seedRbacAndFacilities(tx: Tx) {
       where: { code: roleCode },
       update: {
         name: roleDisplayNames[roleCode] ?? roleCode,
-        description: `Standard system role for ${roleDisplayNames[roleCode] ?? roleCode}`,
+        description: roleDuties[roleCode as Role] ?? '',
         isSystem: true,
       },
       create: {
         code: roleCode,
         name: roleDisplayNames[roleCode] ?? roleCode,
-        description: `Standard system role for ${roleDisplayNames[roleCode] ?? roleCode}`,
+        description: roleDuties[roleCode as Role] ?? '',
         isSystem: true,
       },
     });
@@ -131,6 +117,9 @@ async function seed() {
       ['Arvind Textiles', 'Ahmedabad', 'AT', 'buyer@loomos.demo'],
       ['Fabindia', 'New Delhi', 'FI', 'buyer2@example.test'],
       ['Raymond Apparel', 'Mumbai', 'RA', 'buyer3@example.test'],
+      ['Kaveri Exports', 'Tiruppur', 'KE', 'orders@kaveri.example.test'],
+      ['Sutlej Garments', 'Ludhiana', 'SG', 'buying@sutlej.example.test'],
+      ['Indigo Threads', 'Jaipur', 'IT', 'purchase@indigo.example.test'],
     ].map(([name, city, initials, email]) =>
       tx.buyer.create({ data: { name, city, initials, email } }),
     ));
@@ -139,6 +128,10 @@ async function seed() {
       ['Vardhman Yarns', 'Ludhiana'],
       ['Nahar Spinning Mills', 'Coimbatore'],
       ['Trident Fibres', 'Barnala'],
+      ['Ludhiana Power Distribution', 'Ludhiana'],
+      ['Colourtex Dyes & Chemicals', 'Surat'],
+      ['Punjab Loom Spares', 'Amritsar'],
+      ['Sutlej Transport Co.', 'Ludhiana'],
     ].map(([name, city], i) =>
       tx.supplier.create({ data: { name, city, email: `supplier${i + 1}@example.test` } }),
     ));
@@ -154,6 +147,12 @@ async function seed() {
       ['Kavita Rao', 'Accounts officer', depts['FINANCE']],
       ['Vikram Singh', 'Production coordinator', depts['WEAVING']],
       ['Mohan Lal', 'Dyeing operator', depts['DYEING']],
+      ['Gurmeet Kaur', 'Ring frame operator', depts['SPINNING']],
+      ['Farhan Khan', 'Ring frame operator', depts['SPINNING']],
+      ['Imran Ali', 'Loom operator', depts['WEAVING']],
+      ['Arun Patel', 'Loom operator', depts['WEAVING']],
+      ['Lakshmi Iyer', 'Dyeing operator', depts['DYEING']],
+      ['Deepa Nair', 'Dyeing operator', depts['DYEING']],
     ].map(([name, designation, departmentId], i) =>
       tx.worker.create({
         data: {
@@ -161,7 +160,7 @@ async function seed() {
           designation,
           initials: name.split(' ').map((n) => n[0]).join(''),
           wageType: 'HOURLY',
-          rate: 100 + i * 10,
+          rate: 60 + i * 4,
           departmentId,
         },
       }),
@@ -271,24 +270,6 @@ async function seed() {
     // Operators for the finished demo orders: people who are not busy on a running job.
     const operatorFor: Record<string, string> = { SPINNING: workers[0].id, WEAVING: workers[5].id, DYEING: workers[8].id };
 
-    // Yarn Lots with ample inventory (10,000 kg each)
-    const lots = [];
-    for (let i = 0; i < 4; i++) {
-      const recipe = recipes[i];
-      const lot = await receiveYarn(tx, {
-        supplierId: suppliers[i % 3].id,
-        reference: `GRN-2026-${String(i + 1).padStart(3, '0')}`,
-        material: recipe.material,
-        color: ['Natural', 'Ivory', 'Natural', 'Raw white'][i],
-        specification: recipe.specification,
-        quantity: 10000,
-        costPerKg: 260 + i * 20,
-        location: `Warehouse A · Rack ${i + 1}`,
-        threshold: 500,
-      }, actor);
-      lots.push(lot);
-    }
-
     // Machines for each stage
     const machines = await Promise.all([
       tx.machine.create({ data: { code: 'SP-01', name: 'Ring spinning frame 01', type: 'SPINNING', location: 'Spinning hall · Bay 1', capacityPerHour: 150, hourlyCost: 180, status: 'IDLE', factoryId: factory.id, departmentId: depts['SPINNING'] } }),
@@ -299,7 +280,38 @@ async function seed() {
       tx.machine.create({ data: { code: 'DY-02', name: 'Soft flow dyeing machine 02', type: 'DYEING', location: 'Processing hall · Bay 2', capacityPerHour: 110, hourlyCost: 280, status: 'IDLE', factoryId: factory.id, departmentId: depts['DYEING'] } }),
     ]);
 
-    // EXACTLY 3 DATA (ORDERS):
+    // ---------- Five months of history (orders, receipts, bills, wages, breakdowns) ----------
+    const asUser = async (email: string): Promise<CurrentUser> => {
+      const u = await tx.user.findFirstOrThrow({ where: { email: `${email}@loomos.demo` } });
+      return { id: u.id, name: u.name, email: u.email, role: u.role as Role, buyerId: null, workerId: u.workerId };
+    };
+    await seedHistory(tx, {
+      actor,
+      people: {
+        ops: await asUser('operations'),
+        production: await asUser('production'),
+        inspector: await asUser('quality'),
+        dispatcher: await asUser('dispatch'),
+        accounts: await asUser('accounts'),
+        store: await asUser('inventory'),
+        supervisor: await asUser('supervisor'),
+        maintenance: await asUser('maintenance'),
+      },
+      buyers,
+      yarnSuppliers: suppliers.slice(0, 3),
+      serviceSuppliers: { POWER: suppliers[3], DYES_CHEMICALS: suppliers[4], SPARES: suppliers[5], TRANSPORT: suppliers[6] },
+      recipes,
+      workers,
+      crews: { SPINNING: [0, 9, 10], WEAVING: [1, 11, 12], DYEING: [2, 13, 14, 8] },
+      dayStaff: [3, 4, 5, 6, 7],
+      machines,
+      shifts,
+      currentShiftDate: shiftWindow(currentShift).date,
+    });
+    // Today's orders use this month's yarn (the newest lot of each material).
+    const lots = await Promise.all(recipes.map((r) => tx.yarnLot.findFirstOrThrow({ where: { material: r.material, specification: r.specification }, orderBy: { createdAt: 'desc' } })));
+
+    // TODAY ON THE FLOOR:
     // -------------------------------------------------------------
     // Order 1: WO-2001 (1,200 m) -> Currently in SPINNING (In progress)
     // Order 2: WO-2002 (1,000 m) -> Spinning completed -> Currently in WEAVING (In progress)
@@ -424,9 +436,9 @@ async function seed() {
 
     // A loom stoppage so the machine floor shows a real alert
     await reportBreakdown(tx, machines[3].id, 'Warp beam tension fault', supervisor);
-  }, { timeout: 120000 });
+  }, { timeout: 900000, maxWait: 20000 });
 
-  console.log('LoomOS seeded: 7 orders covering review, every production stage, quality check, loading and delivery.');
+  console.log('LoomOS seeded: 5 months of history (24 completed orders, receipts, bills, wages) plus today\'s floor: 7 live orders.');
 }
 
 seed().finally(() => db.$disconnect());

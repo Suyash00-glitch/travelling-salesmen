@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Users, Clock, LogIn, LogOut, UserRound, Pencil, Timer, ArrowLeftRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, Users, Clock, LogIn, LogOut, UserRound, Pencil, Timer, ArrowLeftRight, Archive } from 'lucide-react';
 import { hasPermission, type PageResponse } from '@loomos/shared';
 import { useData, useLookups, useAction } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
@@ -9,6 +10,8 @@ import { PageHeader, Panel, Loading, ErrorState, Badge, SearchBox, Kpi, Empty } 
 import { DataTable } from '../../components/tables/DataTable';
 import { label, number } from '../../lib/utils';
 import { handoverForm } from '../production/productionForms';
+import { retireShiftForm, shiftForm, workerForm } from '../forms/quickForms';
+import { ShiftReports } from './ShiftReports';
 
 interface Attendance {
   id: string;
@@ -50,6 +53,10 @@ export function WorkforcePage() {
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [search, setSearch] = useState('');
   const canAttend = hasPermission(user, 'attendance', 'manage');
+  const canSetUp = hasPermission(user, 'settings', 'manage');
+  const [params, setParams] = useSearchParams();
+  const view = params.get('view') === 'reports' ? 'reports' : 'now';
+  const setView = (v: string) => setParams(v === 'reports' ? { view: 'reports' } : {}, { replace: true });
 
   if (workers.isPending || board.isPending) return <Loading />;
   if (workers.error) return <ErrorState error={workers.error} retry={() => void workers.refetch()} />;
@@ -95,20 +102,11 @@ export function WorkforcePage() {
   return (
     <>
       <PageHeader eyebrow="PEOPLE & SHIFTS" title="Workers & shifts" description={canAttend ? 'Check workers in at the start of their shift and out at the end.' : 'Who is on shift right now, and where they are working.'}>
-        {hasPermission(user, 'settings', 'manage') && (
-          <Button variant="outline" onClick={() => setSpec({
-            title: 'Add a worker',
-            path: '/workers',
-            fields: [
-              { name: 'name', label: 'Full name' },
-              { name: 'designation', label: 'Designation' },
-              { name: 'departmentId', label: 'Department', type: 'select', required: false, options: (lookup.data?.departments ?? []).map((d) => ({ value: d.id, label: d.name })) },
-              { name: 'wageType', label: 'Wage basis', type: 'select', options: [{ value: 'HOURLY', label: 'Hourly' }, { value: 'PIECE', label: 'Per metre of output' }] },
-              { name: 'rate', label: 'Wage rate (₹)', type: 'number', min: 0.01 },
-            ],
-          })}>
-            <Plus size={16} /> Add worker
-          </Button>
+        {canSetUp && (
+          <>
+            <Button variant="outline" onClick={() => setSpec(shiftForm())}><Plus size={16} /> Add shift</Button>
+            <Button variant="outline" onClick={() => setSpec(workerForm(lookup.data))}><Plus size={16} /> Add worker</Button>
+          </>
         )}
         {canAttend && (
           <Button onClick={() => setSpec(checkInForm())}>
@@ -117,6 +115,12 @@ export function WorkforcePage() {
         )}
       </PageHeader>
 
+      <div className="segmented-control" style={{ marginBottom: 18 }}>
+        <button className={view === 'now' ? 'active' : ''} onClick={() => setView('now')}>Right now</button>
+        <button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Shift reports</button>
+      </div>
+
+      {view === 'reports' ? <ShiftReports /> : (<>
       <div className="kpi-grid">
         <Kpi label="Current shift" value={current?.name ?? 'None'} icon={<Clock size={19} />} meta={current ? `${time(current.start)} – ${time(current.end)}` : 'Between shifts'} accent />
         <Kpi label="Checked in now" value={b?.checkedIn.length ?? 0} unit={`of ${rows.length}`} icon={<Users size={19} />} meta="On the floor right now" />
@@ -130,6 +134,12 @@ export function WorkforcePage() {
             <header><strong>{s.name}</strong><Badge value={s.state === 'CURRENT' ? 'RUNNING' : s.state === 'COMPLETED' ? 'COMPLETED' : 'PLANNED'}>{label(s.state)}</Badge></header>
             <small>{String(s.startHour).padStart(2, '0')}:00 – {String((s.startHour + Number(s.hours)) % 24).padStart(2, '0')}:00 · {s.hours} h</small>
             <small>{(b?.checkedIn ?? []).filter((c) => c.shift.id === s.id).length} checked in</small>
+            {canSetUp && (
+              <div className="record-actions" style={{ justifyContent: 'flex-start' }}>
+                <Button size="sm" variant="outline" onClick={() => setSpec(shiftForm(s))}><Pencil size={13} /> Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => setSpec(retireShiftForm(s))}><Archive size={13} /> Retire</Button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -214,6 +224,8 @@ export function WorkforcePage() {
           ]}
         />
       </Panel>
+
+      </>)}
 
       {spec && <ActionForm spec={spec} onClose={() => setSpec(null)} />}
     </>

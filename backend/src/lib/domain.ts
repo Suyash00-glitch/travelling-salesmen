@@ -58,13 +58,18 @@ export async function mutate<T>(
   return db.$transaction(work);
 }
 
+const istDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+// Midnight of the factory-time day that `date` falls on.
 export function businessDay(date = new Date()) {
-  return new Date(
-    `${new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(date)}T00:00:00+05:30`,
-  );
+  return new Date(`${istDay.format(date)}T00:00:00+05:30`);
 }
+
+// A calendar day in the factory's time zone, stored as UTC midnight of that date
+// (what Postgres DATE columns hold). Attendance uses this, so the day never shifts.
+export function calendarDate(date = new Date()) {
+  return new Date(`${istDay.format(date)}T00:00:00Z`);
+}
+
+// The factory-time start of a calendar day stored by calendarDate().
+export const dayStart = (calendar: Date) => new Date(`${calendar.toISOString().slice(0, 10)}T00:00:00+05:30`);

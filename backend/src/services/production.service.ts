@@ -205,10 +205,13 @@ export async function startJob(tx: Tx, id: string, actor: Actor) {
     const needed = job.target.mul(recipe.kgPerMetre).mul(D(1).plus(recipe.wastePercent.div(100))).toDecimalPlaces(3);
     const held = sum(job.production.reservations.filter((r) => !r.released).map((r) => r.quantity.minus(r.consumed)));
     let shortage = needed.minus(held);
-    const lots = await tx.yarnLot.findMany({
+    // Yarn bought for this order is used first, then general stock, then (last) yarn bought for other orders.
+    const orderId = job.production.orderId;
+    const rank = (lot: { orderId: string | null }) => (lot.orderId && lot.orderId === orderId ? 0 : lot.orderId ? 2 : 1);
+    const lots = (await tx.yarnLot.findMany({
       where: { material: recipe.material, specification: recipe.specification },
       orderBy: { createdAt: 'asc' },
-    });
+    })).sort((a, b) => rank(a) - rank(b));
     for (const lot of lots) {
       if (shortage.lte(0)) break;
       const take = Prisma.Decimal.min(shortage, lot.onHand.minus(lot.reserved));
@@ -282,18 +285,38 @@ export async function recordOutput(tx: Tx, id: string, input: OutputInput, actor
     methodology,
   });
 
-  // The first stage consumes yarn from what was reserved for this batch.
+  // The first stage consumes yarn from what was reserved for this batch, lot by lot (oldest
+  // reservation first). Only if the run used more than was reserved does it take extra stock.
   if (job.sequence === 0) {
-    const reservation = production.reservations.find((r) => !r.released && (input.lotId ? r.lotId === input.lotId : true));
-    const lotId = reservation?.lotId ?? input.lotId;
-    ensure(lotId, 'No yarn is reserved for this batch. Reserve yarn before recording output.');
-    const consumedKg = input.consumedKg && input.consumedKg > 0 ? D(input.consumedKg) : D(qty).mul(recipe.kgPerMetre);
-    const lot = await tx.yarnLot.findUniqueOrThrow({ where: { id: lotId } });
-    ensure(lot.material === recipe.material, `${lot.code} is ${lot.material}, not ${recipe.material}.`);
-    await consumeFromLot(tx, lotId, production.id, consumedKg.toDecimalPlaces(3));
-    const cost = consumedKg.mul(lot.costPerKg);
-    await tx.materialConsumption.create({ data: { entryId: entry.id, lotId, quantity: consumedKg, cost } });
-    await tx.stockMovement.create({ data: { lotId, kind: 'CONSUMPTION', quantity: consumedKg.negated(), reason: `Production output · ${production.number}`, source: entry.id } });
+    const consumedKg = (input.consumedKg && input.consumedKg > 0 ? D(input.consumedKg) : D(qty).mul(recipe.kgPerMetre)).toDecimalPlaces(3);
+    const reservations = production.reservations
+      .filter((r) => !r.released && (!input.lotId || r.lotId === input.lotId))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    ensure(reservations.length || input.lotId, 'No yarn is reserved for this batch. Reserve yarn before recording output.');
+    const portions: { lotId: string; qty: Prisma.Decimal }[] = [];
+    let remaining = consumedKg;
+    for (const r of reservations) {
+      if (remaining.lte(0)) break;
+      const take = Prisma.Decimal.min(remaining, Prisma.Decimal.max(r.quantity.minus(r.consumed), 0));
+      if (take.gt(0)) portions.push({ lotId: r.lotId, qty: take });
+      remaining = remaining.minus(take);
+    }
+    if (remaining.gt(0)) {
+      // Used more than was reserved: take the rest from the chosen (or last reserved) lot if it has stock.
+      const extraLot = input.lotId ?? reservations[reservations.length - 1]?.lotId;
+      ensure(extraLot, 'No yarn is reserved for this batch. Reserve yarn before recording output.');
+      portions.push({ lotId: extraLot, qty: remaining });
+    }
+    let cost = D(0);
+    for (const portion of portions) {
+      const lot = await tx.yarnLot.findUniqueOrThrow({ where: { id: portion.lotId } });
+      ensure(lot.material === recipe.material, `${lot.code} is ${lot.material}, not ${recipe.material}.`);
+      await consumeFromLot(tx, lot.id, production.id, portion.qty);
+      const portionCost = portion.qty.mul(lot.costPerKg);
+      cost = cost.plus(portionCost);
+      await tx.materialConsumption.create({ data: { entryId: entry.id, lotId: lot.id, quantity: portion.qty, cost: portionCost } });
+      await tx.stockMovement.create({ data: { lotId: lot.id, kind: 'CONSUMPTION', quantity: portion.qty.negated(), reason: `Production output · ${production.number}`, source: entry.id } });
+    }
     await tx.costAllocation.create({ data: { ...costRow('MATERIAL', cost, 'Actual consumed kilograms × receipt unit cost'), source: `${entry.id}:material` } });
   }
 

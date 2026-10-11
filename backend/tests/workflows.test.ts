@@ -528,6 +528,89 @@ describe('quality, rework, dispatch and accounts', () => {
   });
 });
 
+describe('bills, money this month, shifts and users', () => {
+  it('lets accounts enter a bill once, pay it, and shows it in this month\'s result', async () => {
+    const supplier = await db.supplier.findFirstOrThrow();
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const body = { supplierId: supplier.id, number: 'PWR-OCT', category: 'POWER', description: 'Electricity', amount: 50000, billDate: today };
+    await post(dispatcher, '/bills', body, 403);
+    const bill = await post(accounts, '/bills', body);
+    await post(accounts, '/bills', body, 409); // same bill number twice
+    await post(accounts, '/bills', { ...body, number: 'FUTURE', billDate: '2999-01-01' }, 400);
+    await post(accounts, `/bills/${bill.id}/payments`, { amount: 60000, reference: 'NEFT-PWR-1' }, 409); // more than owed
+    await post(accounts, `/bills/${bill.id}/payments`, { amount: 20000, reference: 'NEFT-PWR-1' });
+    await post(accounts, `/bills/${bill.id}/payments`, { amount: 1000, reference: 'NEFT-PWR-1' }, 409); // duplicate reference
+    const report = await get(accounts, '/reports/finance');
+    const row = report.bills.find((b: { id: string }) => b.id === bill.id);
+    expect(Number(row.outstanding)).toBe(30000);
+    expect(report.pnl.otherBills).toBeGreaterThanOrEqual(50000);
+    expect(report.trend).toHaveLength(6);
+    expect(report.pnl.profit).toBeCloseTo(report.pnl.sales - report.pnl.spend, 2);
+    const month = await get(accounts, `/reports/finance?month=${today.slice(0, 7)}`);
+    expect(month.bills.some((b: { id: string }) => b.id === bill.id)).toBe(true);
+  });
+
+  it('receives yarn for a specific order and refuses yarn the order does not use', async () => {
+    const supplier = await db.supplier.findFirstOrThrow();
+    const order = await newOrder(100);
+    const base = { supplierId: supplier.id, color: 'Raw', quantity: 50, costPerKg: 250, location: 'Store', threshold: 10, orderId: order.id };
+    await post(admin, '/inventory/receipts', { ...base, reference: 'GRN-WRONG', material: 'Polyester', specification: '150D' }, 409);
+    const lot = await post(admin, '/inventory/receipts', { ...base, reference: 'GRN-FOR-ORDER', material: 'Cotton yarn', specification: '40s' });
+    expect(lot.orderId).toBe(order.id);
+    await post(admin, '/inventory/receipts', { ...base, reference: 'GRN-FOR-ORDER', material: 'Cotton yarn', specification: '40s' }, 409); // same challan twice
+    const bill = await db.supplierBill.findFirstOrThrow({ where: { receipt: { lotId: lot.id } } });
+    expect(bill).toMatchObject({ category: 'YARN', number: 'GRN-FOR-ORDER', supplierId: supplier.id });
+    const orders = await get(ops, '/orders?pageSize=100');
+    expect(orders.data.find((o: { id: string }) => o.id === order.id).yarn.status).toBe('ENOUGH');
+    // Starting that order's spinning uses the yarn bought for it first.
+    const batch = await batchOfOrder(order.id);
+    const job = await jobFor(batch.id, 'SPINNING');
+    await checkIn(ids.workers.spinner);
+    await post(manager, `/production/jobs/${job.id}/assign`, { machineId: (await freeMachine('SPINNING')).id, workerId: ids.workers.spinner });
+    await post(spinner, `/production/jobs/${job.id}/start`);
+    const reservations = await db.stockReservation.findMany({ where: { productionId: batch.id }, orderBy: { createdAt: 'asc' } });
+    expect(reservations[0].lotId).toBe(lot.id);
+    await finishStage(spinner, job.id); // consumes across both lots without failing
+    await post(manager, `/production/batches/${batch.id}/cancel`, { reason: 'test cleanup' });
+  });
+
+  it('reports what happened in each shift and lets only admins change shifts', async () => {
+    const report = await get(manager, '/shifts/report');
+    expect(report.shifts.length).toBeGreaterThanOrEqual(3);
+    expect(report.week).toHaveLength(7);
+    await get(spinner, '/shifts/report', 403);
+    await post(supervisor, '/shifts', { name: 'General', startHour: 9, hours: 8 }, 403);
+    const shift = await post(admin, '/shifts', { name: 'General', startHour: 9, hours: 8 });
+    await post(admin, '/shifts', { name: 'general', startHour: 10, hours: 8 }, 409);
+    await post(admin, `/shifts/${shift.id}/update`, { active: false });
+    expect((await get(supervisor, '/shifts/board')).shifts.some((x: { id: string }) => x.id === shift.id)).toBe(false);
+  });
+
+  it('pays all unpaid wages up to a date in one wage run', async () => {
+    const before = await db.wageEntry.count({ where: { paidAt: null } });
+    expect(before).toBeGreaterThan(0);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const run = await post(accounts, '/wages/pay-all', { upTo: today });
+    expect(run.count).toBe(before);
+    await post(accounts, '/wages/pay-all', { upTo: today }, 409);
+  });
+
+  it('lets the admin create working logins: an operator with a new worker record and a buyer', async () => {
+    await post(admin, '/rbac/users', { name: 'Ravi Kumar', email: 'ravi@test.local', password: PASSWORD, role: 'WEAVING_OPERATOR', departmentId: ids.depts.WEAVING }, 400); // no worker
+    const created = await admin.post('/api/v1/rbac/users').set('X-CSRF-Token', admin.csrf).send({ name: 'Ravi Kumar', email: 'ravi@test.local', password: PASSWORD, role: 'WEAVING_OPERATOR', departmentId: ids.depts.WEAVING, workerId: 'NEW' });
+    expect(created.status, created.text).toBe(201);
+    const user = await db.user.findUniqueOrThrow({ where: { email: 'ravi@test.local' }, include: { worker: true } });
+    expect(user.worker).toMatchObject({ name: 'Ravi Kumar', departmentId: ids.depts.WEAVING });
+    const ravi = await signIn('ravi@test.local');
+    expect((await get(ravi, '/production')).data.every((j: { stage: string }) => j.stage === 'WEAVING')).toBe(true);
+    const buyer = await admin.post('/api/v1/rbac/users').set('X-CSRF-Token', admin.csrf).send({ name: 'New Fabrics Ltd', email: 'newfab@test.local', password: PASSWORD, role: 'BUYER', buyerId: 'NEW' });
+    expect(buyer.status, buyer.text).toBe(201);
+    const login = await signIn('newfab@test.local');
+    expect((await get(login, '/orders')).data).toHaveLength(0);
+    await manager.post('/api/v1/rbac/users').set('X-CSRF-Token', manager.csrf).send({ name: 'x', email: 'x@test.local', password: PASSWORD, role: 'BUYER' }).expect(403);
+  });
+});
+
 describe('standalone production and access control', () => {
   it('makes stock without an order and ships it against a later order', async () => {
     await post(spinner, '/production/batches', { recipeId: ids.recipe, color: 'Ecru', quantity: 200, purpose: 'STOCK' }, 403);

@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/dialog';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { PageHeader, Loading, ErrorState, Badge, Kpi, SearchBox, Empty } from '../../components/shared/common';
 import { number, date, label } from '../../lib/utils';
+import { machineForm } from '../forms/quickForms';
 
 type Machine = Omit<MachineSummary, 'jobs' | 'downtime'> & {
   active: boolean;
@@ -20,23 +21,6 @@ type Machine = Omit<MachineSummary, 'jobs' | 'downtime'> & {
 
 const unavailable = ['BREAKDOWN', 'MAINTENANCE', 'OFFLINE'];
 const types = ['SPINNING', 'WEAVING', 'DYEING'];
-
-function machineForm(lookups: ReturnType<typeof useLookups>['data'], machine?: Machine): FormSpec {
-  return {
-    title: machine ? `Edit ${machine.code}` : 'Add a machine',
-    path: machine ? `/machines/${machine.id}/update` : '/machines',
-    fields: [
-      { name: 'code', label: 'Machine code', value: machine?.code ?? '', hint: 'e.g. LM-03' },
-      { name: 'name', label: 'Name', value: machine?.name ?? '' },
-      { name: 'type', label: 'Department / stage', type: 'select', value: machine?.type ?? '', options: types.map((t) => ({ value: t, label: label(t) })) },
-      { name: 'location', label: 'Location on the floor', value: machine?.location ?? '' },
-      { name: 'capacityPerHour', label: 'Capacity (m / hour)', type: 'number', min: 0.001, value: machine ? Number(machine.capacityPerHour) : 100 },
-      { name: 'hourlyCost', label: 'Running cost (₹ / hour)', type: 'number', min: 0, value: 150 },
-      { name: 'departmentId', label: 'Department', type: 'select', required: false, value: machine?.departmentId ?? '', options: (lookups?.departments ?? []).map((d) => ({ value: d.id, label: d.name })) },
-    ],
-    submit: machine ? 'Save changes' : 'Add machine',
-  };
-}
 
 const reasonForm = (machine: Machine, verb: string, title: string, description: string, submit: string, fieldLabel = 'Reason'): FormSpec => ({
   title: `${title} · ${machine.code}`,

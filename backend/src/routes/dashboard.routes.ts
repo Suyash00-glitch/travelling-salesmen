@@ -32,7 +32,7 @@ dashboardRouter.get('/lookups', async (req, res) => {
     db.supplier.findMany(),
     db.recipe.findMany({ where: { active: true } }),
     db.worker.findMany({ where: { active: true }, select: { id: true, name: true, designation: true, departmentId: true } }),
-    db.shift.findMany(),
+    db.shift.findMany({ orderBy: { startHour: 'asc' } }),
     db.machine.findMany({
       where: { active: true },
       select: { id: true, name: true, code: true, type: true, status: true, departmentId: true },

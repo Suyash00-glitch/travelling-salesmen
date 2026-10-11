@@ -81,6 +81,7 @@ model SalesOrder {
   costs CostAllocation[]
   productions ProductionOrder[]
   claims Claim[]
+  lots YarnLot[]
   @@index([status,deadline])
 }
 model SalesOrderItem {
@@ -103,6 +104,7 @@ model Supplier {
   lots YarnLot[]
   purchases PurchaseOrder[]
   claims Claim[]
+  bills SupplierBill[]
 }
 model PurchaseOrder {
   id String @id @default(cuid())
@@ -130,13 +132,26 @@ model GoodsReceipt {
   receivedAt DateTime @default(now())
   bill SupplierBill?
 }
+// A bill the mill has to pay: raw material, dyes, spares, power, transport...
+// Yarn receipts create one automatically; accounts can enter any other bill by hand.
 model SupplierBill {
   id String @id @default(cuid())
-  receiptId String @unique
-  receipt GoodsReceipt @relation(fields:[receiptId],references:[id])
+  // The supplier's own bill / invoice number.
+  number String @default("")
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId],references:[id])
+  receiptId String? @unique
+  receipt GoodsReceipt? @relation(fields:[receiptId],references:[id])
+  // YARN, DYES_CHEMICALS, SPARES, POWER, TRANSPORT, SERVICES or OTHER
+  category String @default("YARN")
+  description String @default("")
   total Decimal @db.Decimal(14,2)
+  billDate DateTime @default(now())
   dueAt DateTime
+  recordedBy String @default("")
+  createdAt DateTime @default(now())
   payments SupplierPayment[]
+  @@index([billDate])
 }
 model SupplierPayment {
   id String @id @default(cuid())
@@ -160,6 +175,9 @@ model YarnLot {
   reserved Decimal @default(0) @db.Decimal(14,3)
   costPerKg Decimal @db.Decimal(14,2)
   threshold Decimal @db.Decimal(14,3)
+  // The customer order this yarn was bought for (optional). Its batches use this lot first.
+  orderId String?
+  order SalesOrder? @relation(fields:[orderId],references:[id])
   createdAt DateTime @default(now())
   receipt GoodsReceipt?
   movements StockMovement[]
@@ -463,6 +481,8 @@ model Shift {
   name String
   startHour Int
   hours Decimal @db.Decimal(6,2)
+  // Retired shifts keep their history but are no longer offered for check-in.
+  active Boolean @default(true)
   jobs JobCard[]
   attendance Attendance[]
   machineRuns MachineAssignment[]

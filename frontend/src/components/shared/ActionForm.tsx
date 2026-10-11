@@ -9,7 +9,7 @@ import { Spinner } from './common';
 export interface Field {
   name: string;
   label: string;
-  type?: 'text' | 'number' | 'date' | 'email' | 'password' | 'select' | 'textarea';
+  type?: 'text' | 'number' | 'date' | 'email' | 'password' | 'select' | 'textarea' | 'checkboxes';
   options?: { value: string; label: string }[];
   value?: string | number;
   required?: boolean;
@@ -43,7 +43,7 @@ export function ActionForm({
     formState: { errors },
   } = useForm<Record<string, string>>({
     defaultValues: Object.fromEntries(
-      spec.fields.map((f) => [f.name, f.value ?? '']),
+      spec.fields.map((f) => [f.name, f.type === 'checkboxes' ? [] : f.value ?? '']),
     ) as DefaultValues<Record<string, string>>,
   });
 
@@ -71,9 +71,18 @@ export function ActionForm({
             >
               <span>
                 {field.label}
-                {field.required !== false && <b> *</b>}
+                {field.required !== false && field.type !== 'checkboxes' && <b> *</b>}
               </span>
-              {field.type === 'select' ? (
+              {field.type === 'checkboxes' ? (
+                <div className="check-group">
+                  {field.options?.map((o) => (
+                    <label key={o.value}>
+                      <input type="checkbox" value={o.value} {...register(field.name)} />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              ) : field.type === 'select' ? (
                 <select {...register(field.name, { required: field.required !== false })}>
                   <option value="">Select {field.label.toLowerCase()}</option>
                   {field.options?.map((o) => (
