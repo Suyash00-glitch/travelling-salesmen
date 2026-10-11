@@ -242,13 +242,15 @@ export function can(roleOrUser: string | { role?: string; roles?: string[]; perm
   return hasPermission(user, area, 'view');
 }
 
-const positive = z.coerce.number().positive().max(100000000).multipleOf(0.001);
-const money = z.coerce.number().positive().max(100000000).multipleOf(0.01);
+const positive = z.coerce.number().positive().max(100000000);
+const money = z.coerce.number().positive().max(100000000);
 const text = z.string().trim().min(1).max(200);
 
 export const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1).max(128) });
 // Roles a new user may ask for when signing up. Admin roles can only be given by an administrator.
 export const signupRoles = [
+  'STAFF',
+  'BUYER',
   'PRODUCTION_MANAGER',
   'INVENTORY_MANAGER',
   'PROCUREMENT_MANAGER',
@@ -260,7 +262,6 @@ export const signupRoles = [
   'SHIFT_SUPERVISOR',
   'MAINTENANCE_ENGINEER',
   'ACCOUNTS_MANAGER',
-  'BUYER',
 ] as const;
 
 export const signupSchema = z.object({

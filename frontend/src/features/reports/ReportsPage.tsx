@@ -11,7 +11,7 @@ import {
 import type { Dashboard } from '@loomos/shared';
 import { can } from '@loomos/shared';
 import { useAuth } from '../auth/Auth';
-import { useData, useLookups } from '../../hooks/useFactory';
+import { useData } from '../../hooks/useFactory';
 import { Button } from '../../components/ui/button';
 import {
   PageHeader,
@@ -29,7 +29,6 @@ import { number, today, exportCsv } from '../../lib/utils';
 export function ReportsPage() {
   const [day, setDay] = useState(today());
   const query = useData<Dashboard>(`/dashboard?date=${day}`);
-  const lookups = useLookups();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -107,7 +106,7 @@ export function ReportsPage() {
         />
       </div>
 
-      <FactoryAnalytics lookups={lookups.data} />
+      <FactoryAnalytics />
 
       <Panel
         title="Machine output report"

@@ -146,6 +146,7 @@ export function QualityPage({ finished = false }: {
                                 type: 'checkboxes',
                                 required: false,
                                 span: true,
+                                hideWhen: { field: 'result', equals: 'PASSED' },
                                 options: defectChoices.map((d) => ({ value: d, label: d })),
                                 hint: 'Tick every defect you saw. Rework and rejection need at least one.',
                             },

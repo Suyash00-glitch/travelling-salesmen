@@ -90,6 +90,12 @@ export function machineForm(lookups: Lookups | undefined, machine?: { id: string
       { name: 'hourlyCost', label: 'Running cost (₹ / hour)', type: 'number', min: 0, value: 150 },
       { name: 'departmentId', label: 'Department', type: 'select', required: false, value: machine?.departmentId ?? '', options: (lookups?.departments ?? []).map((d) => ({ value: d.id, label: d.name })) },
     ],
+    transform: (d) => ({
+      ...d,
+      capacityPerHour: Number(d.capacityPerHour),
+      hourlyCost: Number(d.hourlyCost),
+      departmentId: d.departmentId ? String(d.departmentId) : undefined,
+    }),
     submit: machine ? 'Save changes' : 'Add machine',
   };
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ArrowDown, Layers, Package, Factory, Workflow, ShieldCheck, Truck, Wallet, Users,
-  QrCode, KeyRound, Smartphone, Activity, ShoppingBag, UserRound, Play,
+  QrCode, KeyRound, Smartphone, Activity, ShoppingBag, UserRound, Play, Check,
 } from 'lucide-react';
 import { createThreadScene, type ThreadScene } from './threads';
 import { DashboardMock } from './DashboardMock';
@@ -92,14 +92,14 @@ const FLOW = [
 ];
 
 const ROLES = [
-  { email: 'owner@loomos.demo', role: 'Owner', icon: Layers, text: 'Running now, open orders, machines, rolls waiting, trucks, yarn and profit this month.', dark: true },
-  { email: 'production@loomos.demo', role: 'Production manager', icon: Workflow, text: 'Running, waiting to start, blocked, late. Which machine is free for the next job.' },
-  { email: 'supervisor@loomos.demo', role: 'Shift supervisor', icon: Users, text: 'The current shift: who is checked in, what is running, what is stuck. Hand over at the end.' },
-  { email: 'weaving@loomos.demo', role: 'Loom operator', icon: Activity, text: 'Your jobs on your machine: target, output, start, pause, done. From a phone, at the loom.' },
-  { email: 'quality@loomos.demo', role: 'Quality inspector', icon: ShieldCheck, text: 'Waiting for inspection, oldest roll first. Pass, rework or reject with the reason.' },
-  { email: 'dispatch@loomos.demo', role: 'Dispatch manager', icon: Truck, text: 'Rolls ready, trucks loading, on the road, delivered. Nothing leaves twice.' },
-  { email: 'accounts@loomos.demo', role: 'Accounts', icon: Wallet, text: 'Invoices, payments, bills to pay, wage runs and claims. Did we make money this month?' },
-  { email: 'buyer@loomos.demo', role: 'Buyer', icon: ShoppingBag, text: 'Place an order at the fixed price and watch it move from review to the truck.' },
+  { role: 'Factory Owner', icon: Layers, text: 'Real-time visibility: open orders, machines, rolls waiting, dispatches, yarn inventory and monthly margin.', dark: true },
+  { role: 'Production Manager', icon: Workflow, text: 'Plan batches, monitor machine constraints, track active floor jobs and coordinate rework.' },
+  { role: 'Shift Supervisor', icon: Users, text: 'Manage attendance check-in/out, live shift handover, and fast breakdown escalations.' },
+  { role: 'Loom Operator', icon: Activity, text: 'Target vs output tracking on assigned frames and rapier looms, right from the floor.' },
+  { role: 'Quality Inspector', icon: ShieldCheck, text: 'Roll-by-roll inspection queue, defect logging, and instant passport grading.' },
+  { role: 'Dispatch Manager', icon: Truck, text: 'Verified roll truck loading, gate passes, and delivery confirmations.' },
+  { role: 'Finance & Accounts', icon: Wallet, text: 'Automated invoices, payments, vendor bills, wage runs and reconciled costs.' },
+  { role: 'Buyer Portal', icon: ShoppingBag, text: 'Self-service ordering at fixed catalog prices and real-time shipment tracking.' },
 ];
 
 const ORDER_STAGES = ['Review', 'Planned', 'Spinning', 'Weaving', 'Dyeing', 'Inspection', 'Truck'];
@@ -141,7 +141,7 @@ export function LandingPage() {
           <nav className="lp-nav-links" aria-label="Sections">
             <a href="#dashboard" onClick={go('dashboard')}>The dashboard</a>
             <a href="#flow" onClick={go('flow')}>How it works</a>
-            <a href="#roles" onClick={go('roles')}>Try a role</a>
+            <a href="#roles" onClick={go('roles')}>Roles</a>
             <a href="#buyers" onClick={go('buyers')}>Buyers</a>
           </nav>
           <div className="lp-nav-actions">
@@ -169,7 +169,7 @@ export function LandingPage() {
           </p>
           <div className="lp-cta-row">
             <Link to="/buyer/signup" className="lp-btn lp-btn-lime lp-btn-lg">Place an order <ArrowRight size={18} /></Link>
-            <a href="#roles" onClick={go('roles')} className="lp-btn lp-btn-ghost lp-btn-lg"><span className="lp-play"><Play size={13} /></span> Try a demo role</a>
+            <a href="#flow" onClick={go('flow')} className="lp-btn lp-btn-ghost lp-btn-lg">How it works</a>
           </div>
 
           <a href="#dashboard" onClick={go('dashboard')} className="lp-scroll-hint" aria-label="Scroll to the dashboard"><ArrowDown size={14} /> Yarn in</a>
@@ -196,7 +196,7 @@ export function LandingPage() {
               The owner sees orders and money. The operator sees their machine. The inspector sees the oldest roll first.
             </p>
             <div className="lp-cta-row lp-centre-row">
-              <Link to="/login" className="lp-btn lp-btn-dark lp-btn-lg">Open the demo <ArrowRight size={18} /></Link>
+              <Link to="/login" className="lp-btn lp-btn-dark lp-btn-lg">Sign in to workspace <ArrowRight size={18} /></Link>
               <a href="#flow" onClick={go('flow')} className="lp-btn lp-btn-outline lp-btn-lg">How it works</a>
             </div>
           </Reveal>
@@ -205,7 +205,7 @@ export function LandingPage() {
               <path d="M60 8 L66 48 L104 54 L66 60 L60 100 L54 60 L16 54 L54 48 Z" fill="none" stroke="#111316" strokeWidth="3" strokeLinejoin="round" />
             </svg>
             <div className="lp-frame">
-              <span className="lp-frame-chip">Demo data</span>
+              <span className="lp-frame-chip">Live operations</span>
               <ScaledFrame width={1100} height={680}><DashboardMock /></ScaledFrame>
             </div>
           </Reveal>
@@ -238,15 +238,22 @@ export function LandingPage() {
 
       <section id="roles" className="lp-section lp-roles">
         <div className="lp-container">
+          <Reveal className="lp-heading-row">
+            <div>
+              <span className="lp-eyebrow">Workforce & Operations</span>
+              <h2 className="lp-h2">Designed for everyone on your team.</h2>
+            </div>
+            <p className="lp-lead">Dedicated workspaces for each factory responsibility, from the mill owner to floor operators.</p>
+          </Reveal>
 
           <Reveal className="lp-roles-grid">
             {ROLES.map((r, i) => (
-              <Link key={r.email} to={`/login?as=${encodeURIComponent(r.email)}`} className={`lp-card lp-role ${r.dark ? 'is-dark' : ''}`} style={{ transitionDelay: `${i * 60}ms` }}>
+              <div key={r.role} className={`lp-card lp-role ${r.dark ? 'is-dark' : ''}`} style={{ transitionDelay: `${i * 60}ms` }}>
                 <span className="lp-role-icon"><r.icon size={18} /></span>
                 <h3>{r.role}</h3>
                 <p>{r.text}</p>
-                <span className="lp-role-go">Open as {r.role.toLowerCase()} <ArrowRight size={14} /></span>
-              </Link>
+                <span className="lp-role-go"><Check size={14} /> Purpose-built workflow</span>
+              </div>
             ))}
           </Reveal>
         </div>
@@ -323,7 +330,6 @@ export function LandingPage() {
               <Link to="/login" className="lp-btn lp-btn-ghost lp-btn-lg">Sign in</Link>
               <Link to="/signup" className="lp-text-link">Need a staff account? Request one</Link>
             </div>
-            <p className="lp-note lp-note-light">Demo accounts for every role are available on the sign-in page.</p>
           </Reveal>
         </div>
       </section>
@@ -336,7 +342,7 @@ export function LandingPage() {
           </div>
           <nav aria-label="Footer">
             <a href="#flow" onClick={go('flow')}>How it works</a>
-            <a href="#roles" onClick={go('roles')}>Try a role</a>
+            <a href="#roles" onClick={go('roles')}>Roles</a>
             <Link to="/login">Sign in</Link>
             <Link to="/buyer/signup">Create a buyer account</Link>
             <Link to="/signup">Request a staff account</Link>

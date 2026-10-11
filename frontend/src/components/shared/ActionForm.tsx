@@ -18,6 +18,8 @@ export interface Field {
   step?: string;
   hint?: string;
   span?: boolean;
+  // Hide (and drop from the submitted data) while another field has this value.
+  hideWhen?: { field: string; equals: string };
 }
 
 export interface FormSpec {
@@ -40,12 +42,16 @@ export function ActionForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<Record<string, string>>({
     defaultValues: Object.fromEntries(
       spec.fields.map((f) => [f.name, f.type === 'checkboxes' ? [] : f.value ?? '']),
     ) as DefaultValues<Record<string, string>>,
   });
+
+  const values = watch();
+  const isHidden = (f: Field) => !!f.hideWhen && values[f.hideWhen.field] === f.hideWhen.equals;
 
   const mutation = useMutation({
     mutationFn: (body: unknown) => api(spec.path, body),
@@ -59,12 +65,14 @@ export function ActionForm({
   return (
     <Modal open onClose={onClose} title={spec.title} description={spec.description}>
       <form
-        onSubmit={handleSubmit((data) =>
-          mutation.mutate(spec.transform ? spec.transform(data) : data),
-        )}
+        onSubmit={handleSubmit((data) => {
+          const clean = { ...data };
+          for (const f of spec.fields) if (isHidden(f)) delete clean[f.name];
+          mutation.mutate(spec.transform ? spec.transform(clean) : clean);
+        })}
       >
         <div className="form-grid">
-          {spec.fields.map((field) => (
+          {spec.fields.filter((f) => !isHidden(f)).map((field) => (
             <label
               className={`field ${field.span ? 'field-wide' : ''}`}
               key={field.name}

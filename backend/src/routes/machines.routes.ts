@@ -25,7 +25,7 @@ machinesRouter.get('/:id/history', authorize('machines'), async (req, res) => {
 });
 
 // Adding, editing and retiring machines: maintenance and administrators.
-write(machinesRouter, '/', ['machines:create', 'settings:manage'], contracts.machineSchema, (tx, input, actor) => createMachine(tx, input, actor));
+write(machinesRouter, '/', ['machines:create', 'machines:manage', 'settings:manage'], contracts.machineSchema, (tx, input, actor) => createMachine(tx, input, actor));
 
 write(machinesRouter, '/:id/update', ['machines:manage', 'settings:manage'], contracts.machineUpdateSchema, (tx, input, actor, req) =>
   updateMachine(tx, id(req), input, actor),

@@ -5,9 +5,9 @@ import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { PageHeader, Panel, Badge } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import { label, money } from '../../lib/utils';
+import { label, money, number } from '../../lib/utils';
 import { UserManagementTab } from './UserManagementTab';
-import { buyerForm, materialForm } from '../forms/quickForms';
+import { buyerForm, materialForm, machineForm } from '../forms/quickForms';
 import { RoleManagementTab } from './RoleManagementTab';
 import { FactoryDepartmentTab } from './FactoryDepartmentTab';
 import { AuditLogTab } from './AuditLogTab';
@@ -21,6 +21,7 @@ export function SettingsPage() {
     'Team access',
     'Roles & permissions',
     'Facilities & depts',
+    'Machines & equipment',
     'Fabric recipes',
     'Buyers',
     'Audit trail',
@@ -65,6 +66,60 @@ export function SettingsPage() {
       {tab === 'Roles & permissions' && <RoleManagementTab />}
 
       {tab === 'Facilities & depts' && <FactoryDepartmentTab />}
+
+      {tab === 'Machines & equipment' && (
+        <Panel
+          title="Machines & equipment"
+          subtitle="All production machinery across Spinning, Weaving, and Dyeing stages. Add new machines, configure capacities, or update details."
+          action={
+            <Button size="sm" onClick={() => setSpec(machineForm(lookups.data))}>
+              <Plus size={14} />
+              Add machine
+            </Button>
+          }
+        >
+          <DataTable
+            data={lookups.data?.machines ?? []}
+            columns={[
+              { accessorKey: 'code', header: 'Machine code', cell: ({ row }) => <strong>{(row.original as any).code}</strong> },
+              { accessorKey: 'name', header: 'Name' },
+              {
+                accessorKey: 'type',
+                header: 'Stage',
+                cell: ({ row }) => <Badge value={(row.original as any).type}>{label((row.original as any).type)}</Badge>,
+              },
+              { accessorKey: 'location', header: 'Floor location' },
+              {
+                accessorKey: 'capacityPerHour',
+                header: 'Capacity (m/h)',
+                cell: ({ row }) => `${number((row.original as any).capacityPerHour)} m/h`,
+              },
+              {
+                accessorKey: 'status',
+                header: 'Status',
+                cell: ({ row }) => (
+                  <Badge value={(row.original as any).active ? (row.original as any).status : 'OFFLINE'}>
+                    {(row.original as any).active ? label((row.original as any).status) : 'Deactivated'}
+                  </Badge>
+                ),
+              },
+              {
+                id: 'actions',
+                header: '',
+                cell: ({ row }) => (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSpec(machineForm(lookups.data, row.original as any))}
+                  >
+                    Edit
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        </Panel>
+      )}
 
       {tab === 'Audit trail' && <AuditLogTab />}
 

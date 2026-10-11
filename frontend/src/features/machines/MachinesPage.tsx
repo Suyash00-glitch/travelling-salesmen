@@ -1,21 +1,40 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { UserRound, Wrench, Plus, Factory, Activity, PauseCircle, TriangleAlert, Pencil, Power, History } from 'lucide-react';
+import { UserRound, Wrench, Plus, Factory, Activity, PauseCircle, TriangleAlert, Pencil, Power, History, Play, Pause, Check, Users, Settings2 } from 'lucide-react';
 import { hasPermission, type BatchRef, type MachineSummary } from '@loomos/shared';
-import { useData, useLookups } from '../../hooks/useFactory';
+import { useData, useLookups, useAction } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/dialog';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
-import { PageHeader, Loading, ErrorState, Badge, Kpi, SearchBox, Empty } from '../../components/shared/common';
+import { PageHeader, Loading, ErrorState, Badge, Kpi, SearchBox, Empty, Progress } from '../../components/shared/common';
 import { number, date, label } from '../../lib/utils';
 import { machineForm } from '../forms/quickForms';
+import { outputForm, finishForm, handoverForm, assignForm } from '../production/productionForms';
+
+type MachineJob = {
+  id: string;
+  stage: string;
+  sequence: number;
+  status: string;
+  target?: string;
+  output?: string;
+  machineId: string | null;
+  workerId: string | null;
+  worker: { id: string; name: string } | null;
+  shift: { name: string } | null;
+  production: BatchRef & {
+    recipeId: string;
+    reservations: { lotId: string; quantity: string; consumed: string; lot: { code: string } }[];
+    jobs: { sequence: number; stage: string; status: string }[];
+  };
+};
 
 type Machine = Omit<MachineSummary, 'jobs' | 'downtime'> & {
   active: boolean;
   departmentId?: string | null;
   department?: { code: string; name: string } | null;
-  jobs: { id: string; status: string; worker: { id: string; name: string } | null; shift: { name: string } | null; production: BatchRef }[];
+  jobs: MachineJob[];
   downtime: { id: string; kind: string; reason: string; startedAt: string; endedAt: string | null }[];
 };
 
@@ -32,7 +51,6 @@ const reasonForm = (machine: Machine, verb: string, title: string, description: 
 
 export function MachinesPage() {
   const query = useData<Machine[]>('/machines');
-  const lookups = useLookups();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const [status, setStatus] = useState('ALL');
@@ -40,7 +58,7 @@ export function MachinesPage() {
   const [search, setSearch] = useState('');
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const selectedId = params.get('machine');
-  const canManage = hasPermission(user, 'machines', 'manage') || hasPermission(user, 'settings', 'manage');
+  const canManage = hasPermission(user, 'machines', 'manage') || hasPermission(user, 'settings', 'manage') || user.role === 'SUPER_ADMIN' || user.role === 'ADMIN';
 
   if (query.isPending) return <Loading />;
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
@@ -61,13 +79,7 @@ export function MachinesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="FACTORY FLOOR" title="Machines" description="Who is running what, which machines are free, and which need repair.">
-        {canManage && (
-          <Button onClick={() => setSpec(machineForm(lookups.data))}>
-            <Plus size={16} /> Add machine
-          </Button>
-        )}
-      </PageHeader>
+      <PageHeader eyebrow="FACTORY FLOOR" title="Machines" description="Who is running what across all stages (Spinning, Weaving, Dyeing), which machines are free, and live progress." />
 
       <div className="kpi-grid">
         <Kpi label="Running" value={active.filter((m) => m.status === 'RUNNING').length} unit={`of ${active.length}`} icon={<Activity size={19} />} meta={`${number(active.reduce((s, m) => s + Number(m.todayOutput), 0))} m produced today`} accent />
@@ -94,6 +106,7 @@ export function MachinesPage() {
         <div className="card-grid">
           {rows.map((m) => {
             const job = m.jobs.find((j) => j.status === 'IN_PROGRESS') ?? m.jobs[0];
+            const percent = job ? Math.min(100, Math.round((Number(job.output || 0) / Math.max(1, Number(job.target || 1))) * 100)) : 0;
             return (
               <button key={m.id} className="job-card" style={{ textAlign: 'left', cursor: 'pointer', opacity: m.active ? 1 : 0.6 }} onClick={() => open(m.id)}>
                 <div className="job-card-top">
@@ -112,6 +125,15 @@ export function MachinesPage() {
                   <strong>{number(m.todayOutput)} <small>m today</small></strong>
                   <span className="muted">{number(m.capacityPerHour)} m/h capacity</span>
                 </div>
+                {job && (
+                  <div style={{ marginTop: 10 }}>
+                    <Progress value={percent} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 4 }}>
+                      <span className="muted">{job.production.number} · {number(job.output)} / {number(job.target)} m</span>
+                      <strong>{percent}%</strong>
+                    </div>
+                  </div>
+                )}
               </button>
             );
           })}
@@ -129,6 +151,7 @@ export function MachinesPage() {
 function MachineDetails({ machine, onClose, onForm, canManage }: { machine: Machine; onClose: () => void; onForm: (s: FormSpec) => void; canManage: boolean }) {
   const { user } = useAuth();
   const lookups = useLookups();
+  const action = useAction();
   const history = useData<{
     entries: { id: string; quantity: string; hours: string; createdAt: string; job: { stage: string } }[];
     downtime: { id: string; kind: string; reason: string; resolution: string; reportedBy: string; startedAt: string; endedAt: string | null }[];
@@ -137,15 +160,21 @@ function MachineDetails({ machine, onClose, onForm, canManage }: { machine: Mach
   // Floor staff report breakdowns; maintenance takes machines out of service and confirms repairs.
   const canReport = hasPermission(user, 'machines', 'update');
   const canService = hasPermission(user, 'machines', 'approve');
+  const canRun = hasPermission(user, 'production', 'update');
+  const canPlan = hasPermission(user, 'production', 'approve');
+  const canHandover = hasPermission(user, 'attendance', 'manage') || canPlan || canRun;
+
   const job = machine.jobs.find((j) => j.status === 'IN_PROGRESS') ?? machine.jobs[0];
   const down = unavailable.includes(machine.status);
+  const percent = job ? Math.min(100, Math.round((Number(job.output || 0) / Math.max(1, Number(job.target || 1))) * 100)) : 0;
+  const post = (jobId: string, verb: string) => action.mutate({ path: `/production/jobs/${jobId}/${verb}` });
 
   return (
     <Modal open onClose={onClose} wide title={`${machine.code} · ${machine.name}`} description={`${label(machine.type)} · ${machine.location}${machine.department ? ` · ${machine.department.name}` : ''}`}>
       <div className="batch-modal-body">
         <div className="batch-flags" style={{ marginBottom: 12 }}>
           <Badge value={machine.active ? machine.status : 'OFFLINE'}>{machine.active ? label(machine.status) : 'Deactivated'}</Badge>
-          <span className="flag">{number(machine.capacityPerHour)} m/h</span>
+          <span className="flag">{number(machine.capacityPerHour)} m/h capacity</span>
           <span className="flag">{number(machine.todayOutput)} m today</span>
           {machine.downtime[0] && <span className="flag issue">{label(machine.downtime[0].kind ?? 'BREAKDOWN')}: {machine.downtime[0].reason}</span>}
         </div>
@@ -160,11 +189,54 @@ function MachineDetails({ machine, onClose, onForm, canManage }: { machine: Mach
             <small>{job?.worker?.name ?? 'None'}{job?.shift ? ` · ${job.shift.name}` : ''}</small>
           </div>
         </div>
+
+        {job && (
+          <div style={{ margin: '14px 0', padding: '12px', background: 'var(--muted-bg, rgba(255,255,255,0.04))', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <strong>Progress: {number(job.output)} / {number(job.target)} m</strong>
+              <span className="muted">{percent}% complete</span>
+            </div>
+            <Progress value={percent} />
+          </div>
+        )}
+
         {down && !canService && machine.active && (
           <p className="muted" style={{ margin: '0 0 8px' }}>Maintenance will confirm when this machine is repaired.</p>
         )}
 
-        <div className="detail-actions">
+        <div className="detail-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {job && job.status === 'IN_PROGRESS' && canRun && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => onForm(outputForm(job, lookups.data))} title="Record progress & metre output for this shift">
+                <Plus size={14} /> Record Progress
+              </Button>
+              <Button size="sm" variant="outline" className="button-destructive-outline" disabled={action.isPending} onClick={() => post(job.id, 'pause')} title="Stop / Pause process">
+                <Pause size={14} /> Stop / Pause
+              </Button>
+              <Button size="sm" className="button-lime" onClick={() => onForm(finishForm(job, undefined, lookups.data))} title="Finish and complete stage">
+                <Check size={14} /> Finish Process
+              </Button>
+            </>
+          )}
+
+          {job && job.status === 'PAUSED' && canRun && (
+            <Button size="sm" disabled={action.isPending} onClick={() => post(job.id, 'start')} title="Resume or start production">
+              <Play size={14} /> Resume / Start
+            </Button>
+          )}
+
+          {job && (job.status === 'IN_PROGRESS' || job.status === 'PAUSED') && canHandover && (
+            <Button size="sm" variant="outline" onClick={() => onForm(handoverForm({ ...job, workerName: job.worker?.name, machineCode: machine.code }, job.production.number, lookups.data))} title="Shift change: handover to another operator">
+              <Users size={14} /> Shift Handover
+            </Button>
+          )}
+
+          {machine.status === 'IDLE' && machine.active && (canPlan || canRun) && (
+            <Button size="sm" variant="outline" onClick={() => onForm(assignForm({ id: '', stage: machine.type, status: 'READY', machineId: machine.id, workerId: null }, `Stage ${label(machine.type)}`, lookups.data))}>
+              <Settings2 size={14} /> Assign Worker
+            </Button>
+          )}
+
           {canReport && machine.active && !down && (
             <Button size="sm" variant="outline" onClick={() => onForm(reasonForm(machine, 'breakdown', 'Report breakdown', 'The running job stops and managers are told. Work can be moved to another machine.', 'Report breakdown', 'What happened?'))}>
               <TriangleAlert size={14} /> Report breakdown

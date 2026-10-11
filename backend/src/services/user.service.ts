@@ -70,6 +70,11 @@ export async function approveUser(
   ensure(user, 'User not found.', 404);
   ensure(user.approvalStatus === 'PENDING', 'This request has already been handled.');
 
+  // A buyer signup is only ever verified as a buyer: no staff role, department or worker record.
+  const buyerRequest = user.requestedRole === 'BUYER';
+  if (buyerRequest) input = { role: 'BUYER', buyerId: input.buyerId };
+  else ensure(input.role !== 'BUYER', 'This person asked for a staff account. Decline it if they should sign up as a buyer instead.');
+
   const role = await tx.role.findUnique({ where: { code: input.role } });
   ensure(role || (standardRoles as readonly string[]).includes(input.role), 'Unknown role.');
 

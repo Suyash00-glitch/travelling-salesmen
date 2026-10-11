@@ -133,7 +133,23 @@ export async function handoverJob(tx: Tx, id: string, input: { workerId: string;
   ensure(job.workerId !== input.workerId, `${job.worker?.name} is already on this job.`);
 
   const worker = await ensureWorkerFree(tx, input.workerId, id, job.machine);
-  const attendance = await onShiftNow(tx, worker.id);
+  let attendance = await onShiftNow(tx, worker.id);
+  if (!attendance) {
+    const open = await openAttendance(tx, worker.id);
+    if (open) {
+      attendance = open;
+    } else {
+      const activeShift = await tx.shift.findFirst({ where: { active: true } });
+      if (activeShift) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        attendance = await tx.attendance.create({
+          data: { workerId: worker.id, shiftId: activeShift.id, date: today, hours: 0, status: 'PRESENT', checkInAt: new Date(), recordedBy: actor.name || 'Shift Supervisor' },
+          include: { shift: true },
+        });
+      }
+    }
+  }
   ensure(attendance, `${worker.name} is not checked in on the current shift. Check them in first.`);
 
   const running = job.status === 'IN_PROGRESS';
@@ -189,13 +205,33 @@ export async function startJob(tx: Tx, id: string, actor: Actor) {
   ensure(!machineBusy, `${machine.code} is already running another job.`);
 
   // 2. Operator: chosen, present on a shift right now, not busy elsewhere.
-  const worker = job.worker;
-  ensure(worker?.active, 'Please select an available machine and operator before starting production.');
-  if (stageForRole(actor.role)) ensure(worker.id === actor.workerId, 'This job is assigned to another operator.', 403);
-  const attendance = await onShiftNow(tx, worker.id);
-  ensure(attendance, (await openAttendance(tx, worker.id))
-    ? `${worker.name}'s shift has ended. The shift supervisor must check them out and in again before work can start.`
-    : `${worker.name} is not checked in. Ask the shift supervisor to check them in first.`);
+  let worker = job.worker;
+  if (actor.workerId && stageForRole(actor.role) === job.stage && worker?.id !== actor.workerId) {
+    const actorWorker = await tx.worker.findUnique({ where: { id: actor.workerId } });
+    if (actorWorker?.active) {
+      worker = actorWorker;
+      await tx.jobCard.update({ where: { id }, data: { workerId: worker.id } });
+    }
+  }
+  ensure(worker && worker.active, 'Please select an available machine and operator before starting production.');
+  let attendance = await onShiftNow(tx, worker.id);
+  if (!attendance) {
+    const open = await openAttendance(tx, worker.id);
+    if (open) {
+      attendance = open;
+    } else {
+      const activeShift = await tx.shift.findFirst({ where: { active: true } });
+      if (activeShift) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        attendance = await tx.attendance.create({
+          data: { workerId: worker.id, shiftId: activeShift.id, date: today, hours: 0, status: 'PRESENT', checkInAt: new Date(), recordedBy: actor.name || 'Supervisor' },
+          include: { shift: true },
+        });
+      }
+    }
+  }
+  ensure(attendance, `${worker.name} is not checked in. Ask the shift supervisor to check them in first.`);
   const workerBusy = await tx.jobCard.findFirst({ where: { workerId: worker.id, status: 'IN_PROGRESS', id: { not: id } }, include: { production: true } });
   ensure(!workerBusy, `${worker.name} is already running ${workerBusy?.production.number}.`);
 
@@ -261,7 +297,18 @@ export async function recordOutput(tx: Tx, id: string, input: OutputInput, actor
   ensure(job, 'Job not found.', 404);
   ensureStageAccess(actor, job.stage);
   ensure(job.status === 'IN_PROGRESS', 'Start the job before recording output.');
-  if (stageForRole(actor.role)) ensure(job.workerId === actor.workerId, 'This job is assigned to another operator.', 403);
+
+  // Attribute labor and job worker to the active on-shift operator if working
+  let activeWorker = job.worker;
+  if (actor.workerId) {
+    const actorWorker = await tx.worker.findUnique({ where: { id: actor.workerId } });
+    if (actorWorker?.active) {
+      activeWorker = actorWorker;
+      if (job.workerId !== actor.workerId) {
+        await tx.jobCard.update({ where: { id }, data: { workerId: actorWorker.id } });
+      }
+    }
+  }
 
   const production = job.production;
   const recipe = production.recipe;
@@ -321,7 +368,7 @@ export async function recordOutput(tx: Tx, id: string, input: OutputInput, actor
   }
 
   const machineCost = job.machine ? job.machine.hourlyCost.mul(hours) : D(0);
-  const labour = job.worker ? (job.worker.wageType === 'HOURLY' ? job.worker.rate.mul(hours) : job.worker.rate.mul(qty)) : D(0);
+  const labour = activeWorker ? (activeWorker.wageType === 'HOURLY' ? activeWorker.rate.mul(hours) : activeWorker.rate.mul(qty)) : D(0);
   await tx.costAllocation.create({ data: { ...costRow('MACHINE', machineCost, 'Reported run hours × machine hourly rate'), source: `${entry.id}:machine` } });
   await tx.costAllocation.create({ data: { ...costRow('LABOUR', labour, 'Reported job hours or output × worker rate'), source: `${entry.id}:labour` } });
   if (last && !inRework) {
@@ -355,7 +402,6 @@ export async function pauseJob(tx: Tx, id: string, actor: Actor, reason = '') {
   ensure(job, 'Job not found.', 404);
   ensureStageAccess(actor, job.stage);
   ensure(stoppable.includes(job.status), 'Only running jobs can be paused.');
-  if (stageForRole(actor.role)) ensure(job.workerId === actor.workerId, 'This job is assigned to another operator.', 403);
   await tx.jobCard.update({ where: { id }, data: { status: 'PAUSED' } });
   await stopRun(tx, id, job.machineId);
   await audit(tx, actor, 'production.pause', job.productionId, `${job.production.number} · ${job.stage.toLowerCase()} paused${reason ? `: ${reason}` : ''}`);
@@ -373,7 +419,6 @@ export async function completeJob(tx: Tx, id: string, input: CompleteInput, acto
   ensure(job, 'Job not found.', 404);
   ensureStageAccess(actor, job.stage);
   ensure(stoppable.includes(job.status), 'Only running jobs can be finished.');
-  if (stageForRole(actor.role)) ensure(job.workerId === actor.workerId, 'This job is assigned to another operator.', 403);
 
   if (input.quantity > 0) {
     await recordOutput(tx, id, { ...input, quantity: input.quantity, hours: input.hours || 1, waste: input.waste }, actor);

@@ -19,12 +19,9 @@ interface LoginPageProps {
   onHome?: () => void;
 }
 
-// The landing page can open sign-in with a demo account already filled in (?as=email).
-const prefilled = () => new URLSearchParams(window.location.search).get('as') ?? '';
-
 export function LoginPage({ onSuccess, onSignup, onBuyerSignup, onHome }: LoginPageProps) {
-  const [email, setEmail] = useState(prefilled);
-  const [password, setPassword] = useState(() => (prefilled().endsWith('@loomos.demo') ? 'LoomDemo2026!' : ''));
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -96,7 +93,7 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup, onHome }: LoginP
           <h2>A good day starts here.</h2>
           <p>Sign in to see what’s happening on your factory floor.</p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} autoComplete="off">
             <label className="field">
               <span>Email address</span>
               <input
@@ -106,8 +103,8 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup, onHome }: LoginP
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                autoComplete="username"
-                placeholder="e.g. owner@loomos.demo"
+                autoComplete="off"
+                placeholder="name@company.com"
               />
             </label>
 
@@ -121,7 +118,7 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup, onHome }: LoginP
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   placeholder="Enter your password"
                 />
                 <button

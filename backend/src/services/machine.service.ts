@@ -10,7 +10,7 @@ const unavailable = ['BREAKDOWN', 'MAINTENANCE', 'OFFLINE'];
 
 export async function createMachine(tx: Tx, input: { code: string; name: string; type: string; location: string; capacityPerHour: number; hourlyCost: number; departmentId?: string }, actor: Actor) {
   ensure(!(await tx.machine.findUnique({ where: { code: input.code } })), 'A machine with this code already exists.');
-  const machine = await tx.machine.create({ data: { ...input, factoryId: actor.factoryId ?? null, departmentId: input.departmentId ?? null } });
+  const machine = await tx.machine.create({ data: { ...input, factoryId: actor.factoryId ?? null, departmentId: input.departmentId ? input.departmentId : null } });
   await audit(tx, actor, 'machine.created', machine.id, `${machine.code} · ${machine.name} added`);
   return machine;
 }
@@ -21,7 +21,7 @@ export async function updateMachine(tx: Tx, id: string, input: Partial<{ code: s
   if (input.type && input.type !== machine.type) {
     ensure(!(await tx.jobCard.count({ where: { machineId: id, status: { in: ['IN_PROGRESS', 'ASSIGNED', 'PAUSED', 'BLOCKED'] } } })), 'Finish or move the machine’s current jobs before changing its type.');
   }
-  const updated = await tx.machine.update({ where: { id }, data: { ...input, departmentId: input.departmentId ?? machine.departmentId } });
+  const updated = await tx.machine.update({ where: { id }, data: { ...input, departmentId: input.departmentId ? input.departmentId : null } });
   await audit(tx, actor, 'machine.updated', id, `${updated.code} details updated`);
   return updated;
 }
@@ -115,7 +115,17 @@ export async function machineSummaries(day = businessDay()) {
     include: {
       jobs: {
         where: { status: { in: ['IN_PROGRESS', 'BLOCKED', 'PAUSED', 'ASSIGNED'] } },
-        include: { worker: true, shift: true, production: { include: { order: { include: { buyer: true } } } } },
+        include: {
+          worker: true,
+          shift: true,
+          production: {
+            include: {
+              order: { include: { buyer: true } },
+              reservations: { include: { lot: true } },
+              jobs: { select: { sequence: true, stage: true, status: true } },
+            },
+          },
+        },
       },
       downtime: { where: { endedAt: null } },
       department: { select: { code: true, name: true } },
@@ -134,9 +144,21 @@ export async function machineSummaries(day = businessDay()) {
     todayOutput: sum(entries.filter((e) => e.job.machineId === m.id).map((e) => e.quantity)).toString(),
     jobs: m.jobs.map((j) => ({
       ...j,
+      target: j.target.toString(),
+      output: j.output.toString(),
       worker: j.worker ? { id: j.worker.id, name: j.worker.name } : null,
       shift: j.shift ? { name: j.shift.name } : null,
-      production: batchRef(j.production),
+      production: {
+        ...batchRef(j.production),
+        recipeId: j.production.recipeId,
+        reservations: j.production.reservations.map((r) => ({
+          lotId: r.lotId,
+          quantity: r.quantity.toString(),
+          consumed: r.consumed.toString(),
+          lot: { code: r.lot.code },
+        })),
+        jobs: j.production.jobs,
+      },
     })),
   }));
 }

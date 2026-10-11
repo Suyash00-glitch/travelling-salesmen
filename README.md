@@ -82,7 +82,7 @@ New buyers sign up at `/buyer/signup`; staff use "Request an account" on the log
 - **Accounts** answers "did we make money this month?": sales against yarn bills, other bills, wages and expenses, a six-month chart, and cost per order.
 - **Workers & shifts → Shift reports** shows what happened in every shift of any day: who worked, metres per stage and machine, breakdowns, inspections, wages and a timeline.
 - **+ New** in the top bar adds anything your role allows: orders, batches, yarn receipts, purchase orders, bills, expenses, buyers, suppliers, machines, workers, shifts, fabrics and user logins.
-- The demo data covers five months (24 finished orders, monthly yarn receipts and bills, daily attendance and wages, breakdowns, claims) plus today's live floor.
+- The demo data covers five months (100 orders, monthly yarn receipts and bills, daily attendance and wages, breakdowns, claims) plus today's live floor.
 
 ## Who may do what
 

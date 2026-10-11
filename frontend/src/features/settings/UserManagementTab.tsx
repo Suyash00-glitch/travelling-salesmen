@@ -57,9 +57,28 @@ export function UserManagementTab() {
   // Pending requests are handled in the card above the table, not with the activate switch.
   const allUsers = everyone.filter((u) => u.approvalStatus !== 'PENDING');
 
-  const approve = (u: UserManagementItem): FormSpec => ({
+  // Buyer signups are verified, not given a role: the company from the signup becomes the buyer.
+  const approveBuyer = (u: UserManagementItem): FormSpec => ({
+    title: `Verify buyer · ${u.name}`,
+    description: `${u.email} signed up for ${u.company || 'a buyer company'}${u.city ? `, ${u.city}` : ''}${u.phone ? ` · ${u.phone}` : ''}. Approving creates that buyer and lets them place orders.`,
+    path: `/rbac/users/${u.id}/approve`,
+    fields: [
+      {
+        name: 'buyerId',
+        label: 'Already one of our buyers?',
+        type: 'select',
+        required: false,
+        options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })),
+        hint: `Leave empty to create “${u.company || u.name}” as a new buyer.`,
+      },
+    ],
+    transform: (d) => ({ role: 'BUYER', ...(d.buyerId ? { buyerId: d.buyerId } : {}) }),
+    submit: 'Verify buyer',
+  });
+
+  const approveStaff = (u: UserManagementItem): FormSpec => ({
     title: `Approve ${u.name}`,
-    description: `${u.email} asked for ${u.requestedRole ? label(u.requestedRole) : 'access'}. Choose the role they should really have.`,
+    description: `${u.email} asked for ${u.requestedRole ? label(u.requestedRole) : 'access'}${u.note ? ` · “${u.note}”` : ''}. Choose the role they should really have.`,
     path: `/rbac/users/${u.id}/approve`,
     fields: [
       {
@@ -67,15 +86,7 @@ export function UserManagementTab() {
         label: 'Role',
         type: 'select',
         value: u.requestedRole ?? '',
-        options: (rolesQuery.data ?? []).map((r) => ({ value: r.code, label: r.name })),
-      },
-      {
-        name: 'buyerId',
-        label: 'Buyer company (buyers only)',
-        type: 'select',
-        required: false,
-        options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })),
-        hint: u.company ? `Leave empty to create “${u.company}, ${u.city}” from the signup.` : undefined,
+        options: (rolesQuery.data ?? []).filter((r) => !['BUYER', 'SUPER_ADMIN'].includes(r.code)).map((r) => ({ value: r.code, label: r.name })),
       },
       {
         name: 'departmentId',
@@ -90,12 +101,13 @@ export function UserManagementTab() {
         type: 'select',
         required: false,
         options: (lookups.data?.workers ?? []).map((w) => ({ value: w.id, label: w.name })),
-        hint: 'Floor staff: lets them accept jobs as themselves.',
+        hint: 'Operators and supervisors need one to run or hand over jobs.',
       },
     ],
     transform: (d) => Object.fromEntries(Object.entries(d).filter(([, v]) => v !== '')),
     submit: 'Approve and give access',
   });
+  const approve = (u: UserManagementItem): FormSpec => (u.requestedRole === 'BUYER' ? approveBuyer(u) : approveStaff(u));
 
   const reject = (u: UserManagementItem): FormSpec => ({
     title: `Decline ${u.name}`,
@@ -135,7 +147,7 @@ export function UserManagementTab() {
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button size="sm" onClick={() => setSpec(approve(u))}>
-                  <CheckCircle2 size={14} /> Approve
+                  <CheckCircle2 size={14} /> {u.requestedRole === 'BUYER' ? 'Verify buyer' : 'Approve'}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setSpec(reject(u))}>
                   <XCircle size={14} /> Decline
@@ -321,7 +333,7 @@ function CreateUserModal({
   const client = useQueryClient();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('LoomDemo2026!');
+  const [password, setPassword] = useState('');
   const [primaryRole, setPrimaryRole] = useState('WEAVING_OPERATOR');
   const [selectedRoles, setSelectedRoles] = useState<string[]>(['WEAVING_OPERATOR']);
   const [factoryId, setFactoryId] = useState('');
@@ -374,12 +386,12 @@ function CreateUserModal({
 
           <label className="field">
             <span>Email Address *</span>
-            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. rahul@loomos.demo" />
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. rahul@company.com" />
           </label>
 
           <label className="field">
             <span>Initial Password *</span>
-            <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={10} placeholder="Initial password (min 10 chars)" />
           </label>
 
           <label className="field">

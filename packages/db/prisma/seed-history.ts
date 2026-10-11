@@ -81,10 +81,10 @@ export async function seedHistory(tx: Tx, ctx: Ctx) {
     return new Date(d.getTime() - IST_OFFSET);
   };
   const receiptPlan = [
-    { recipe: 0, kg: 700, cost: 268, color: 'Natural', threshold: 400 },
-    { recipe: 1, kg: 750, cost: 279, color: 'Ivory', threshold: 400 },
-    { recipe: 2, kg: 450, cost: 302, color: 'Natural', threshold: 600 },
-    { recipe: 3, kg: 500, cost: 241, color: 'Raw white', threshold: 300 },
+    { recipe: 0, kg: 8000, cost: 268, color: 'Natural', threshold: 600 },
+    { recipe: 1, kg: 8000, cost: 279, color: 'Ivory', threshold: 600 },
+    { recipe: 2, kg: 8000, cost: 302, color: 'Natural', threshold: 800 },
+    { recipe: 3, kg: 8000, cost: 241, color: 'Raw white', threshold: 500 },
   ];
   let grn = 1;
   for (const back of monthsBack) {
@@ -156,32 +156,16 @@ export async function seedHistory(tx: Tx, ctx: Ctx) {
 
   // ---------- Orders that went through the whole mill ----------
   // daysAgo the order arrived, buyer, recipe, colour, metres, quality outcome, payment
-  const plan: [number, number, number, string, number, 'ok' | 'rework' | 'reject' | 'pending', 'full' | 'half' | 'none'][] = [
-    [152, 0, 0, 'Ivory', 2200, 'ok', 'full'],
-    [145, 1, 1, 'Navy', 1800, 'ok', 'full'],
-    [138, 2, 2, 'Sand', 1600, 'rework', 'full'],
-    [131, 3, 3, 'Raw white', 2400, 'ok', 'full'],
-    [124, 4, 0, 'Sky blue', 2000, 'ok', 'full'],
-    [117, 5, 1, 'Charcoal', 2200, 'reject', 'full'],
-    [110, 0, 2, 'Olive', 1800, 'ok', 'full'],
-    [103, 1, 0, 'Peach', 2400, 'ok', 'full'],
-    [96, 2, 3, 'Natural', 2600, 'rework', 'none'],
-    [89, 3, 1, 'Maroon', 2000, 'ok', 'full'],
-    [82, 4, 2, 'Sage green', 1600, 'ok', 'full'],
-    [75, 5, 0, 'White', 2200, 'ok', 'full'],
-    [68, 0, 1, 'Indigo', 2400, 'rework', 'full'],
-    [61, 1, 3, 'Ecru', 2000, 'ok', 'half'],
-    [54, 2, 0, 'Lilac', 1800, 'ok', 'full'],
-    [47, 3, 2, 'Rust', 1600, 'reject', 'full'],
-    [40, 4, 1, 'Khaki', 2200, 'ok', 'full'],
-    [33, 5, 0, 'Mint', 2000, 'ok', 'half'],
-    [26, 0, 3, 'Raw white', 2400, 'rework', 'half'],
-    [19, 1, 2, 'Beige', 1800, 'ok', 'none'],
-    [13, 2, 1, 'Black', 2000, 'ok', 'none'],
-    [9, 3, 0, 'Coral', 1600, 'ok', 'none'],
-    [6, 4, 2, 'Teal', 1400, 'ok', 'none'],
-    [4, 5, 3, 'Grey', 1200, 'pending', 'none'],
-  ];
+  // One hundred orders spread over five months: a new order roughly every day and a half, rotating
+  // through the buyers and fabrics, with the occasional rework or rejection and a few still unpaid.
+  const colours = ['Ivory', 'Navy', 'Sand', 'Raw white', 'Sky blue', 'Charcoal', 'Olive', 'Peach', 'Natural', 'Maroon', 'Sage green', 'White', 'Indigo', 'Ecru', 'Lilac', 'Rust', 'Khaki', 'Mint', 'Beige', 'Black', 'Coral', 'Teal', 'Grey', 'Mustard', 'Bottle green'];
+  const ORDERS = 125;
+  const plan: [number, number, number, string, number, 'ok' | 'rework' | 'reject' | 'pending', 'full' | 'half' | 'none'][] = Array.from({ length: ORDERS }, (_, i) => {
+    const daysAgo = Math.round(152 - (i * 148) / (ORDERS - 1));
+    const quality = i >= ORDERS - 2 ? 'pending' : i % 11 === 6 ? 'reject' : i % 7 === 3 ? 'rework' : 'ok';
+    const payment = daysAgo > 40 ? (i % 9 === 4 ? 'half' : 'full') : daysAgo > 20 ? (i % 3 === 0 ? 'none' : i % 3 === 1 ? 'half' : 'full') : 'none';
+    return [daysAgo, i % ctx.buyers.length, (i * 3) % ctx.recipes.length, colours[i % colours.length], 1200 + ((i * 37) % 8) * 200, quality, payment];
+  });
   const defectsFor = ['Colour mismatch', 'Uneven weaving', 'Holes', 'Stains', 'Broken picks'];
   const trucks = ['PB-10-GT-4521', 'HR-55-KL-0932', 'GJ-01-AB-7781', 'MH-04-CD-1190', 'DL-1C-AA-5520', 'RJ-14-GH-3301'];
   const drivers = ['Gurpreet Singh', 'Mahesh Yadav', 'Suresh Patil', 'Ramesh Chauhan', 'Iqbal Sheikh', 'Kuldeep Rana'];
@@ -197,11 +181,11 @@ export async function seedHistory(tx: Tx, ctx: Ctx) {
       instructions: '',
       items: [{ recipeId: recipe.id, color, quantity: metres }],
     }, ctx.people.ops);
-    const orderNumber = `SO-2026-${String(900 + index).padStart(4, '0')}`;
+    const orderNumber = `SO-2026-${String(700 + index).padStart(4, '0')}`;
     await tx.salesOrder.update({ where: { id: order.id }, data: { number: orderNumber, createdAt: at(created, 10), deadline: at(created, 12 * 24 + 18) } });
     await planOrder(tx, order.id, ctx.people.ops);
     const batch = await tx.productionOrder.findUniqueOrThrow({ where: { itemId: order.items[0].id }, include: { jobs: { orderBy: { sequence: 'asc' } } } });
-    const batchNumber = `WO-${1900 + index}`;
+    const batchNumber = `WO-${1700 + index}`;
     await tx.productionOrder.update({ where: { id: batch.id }, data: { number: batchNumber, createdAt: at(created, 10.5), dueDate: at(created, 12 * 24 + 18) } });
     log(ctx.people.ops, 'order.created', order.id, `${orderNumber} · New order from ${buyer.name}: ${metres} m ${recipe.name}, ${color}`, at(created, 10));
     log(ctx.people.ops, 'production.created', batch.id, `${batchNumber} · ${metres} m ${recipe.name} planned for order ${orderNumber}`, at(created, 10.5));

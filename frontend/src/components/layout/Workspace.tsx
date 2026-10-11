@@ -297,7 +297,6 @@ export function Workspace() {
             <span className="footer-mark">✳</span> LoomOS <span>·</span> Factory operations
           </span>
           <span>
-            {demo ? 'DEMONSTRATION DATA · ' : ''}
             Operator-reported production
           </span>
         </footer>

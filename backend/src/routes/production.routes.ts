@@ -146,8 +146,8 @@ write(productionRouter, '/issues/:id/resolve', 'production:approve', contracts.r
 
 // ==================== JOB CARDS ====================
 
-// 1. The production manager chooses the machine and operator (also to move stopped work after a breakdown).
-write(productionRouter, '/jobs/:id/assign', 'production:approve', contracts.assignmentSchema, (tx, input, actor, req) =>
+// 1. The production manager or stage operator chooses the machine and operator (also to move stopped work after a breakdown).
+write(productionRouter, '/jobs/:id/assign', ['production:approve', 'production:update'], contracts.assignmentSchema, (tx, input, actor, req) =>
   assignJob(tx, id(req), input, actor),
 );
 
@@ -170,7 +170,7 @@ write(productionRouter, '/jobs/:id/complete', 'production:update', contracts.com
   completeJob(tx, id(req), input, actor),
 );
 
-// Shift change: the supervisor hands a running job to the incoming operator on the same machine.
-write(productionRouter, '/jobs/:id/handover', ['attendance:manage', 'production:approve'], contracts.handoverSchema, (tx, input, actor, req) =>
+// Shift change: the supervisor or operator hands a running job to the incoming operator on the same machine.
+write(productionRouter, '/jobs/:id/handover', ['attendance:manage', 'production:approve', 'production:update'], contracts.handoverSchema, (tx, input, actor, req) =>
   handoverJob(tx, id(req), input, actor),
 );

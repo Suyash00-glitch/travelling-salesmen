@@ -96,12 +96,14 @@ export function BarList({
   rows,
   format = (v) => v.toLocaleString('en-IN'),
   onSelect,
+  scaleMax,
 }: {
   rows: { label: string; value: number; color: string; key?: string }[];
   format?: (value: number) => string;
   onSelect?: (row: { label: string; key?: string }) => void;
+  scaleMax?: number;
 }) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
+  const max = scaleMax ?? Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className="hbar-list">
       {rows.map((r) => (

@@ -1,10 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Factory, Layers, ShieldCheck } from 'lucide-react';
-import { signupRoles } from '@loomos/shared';
 import { api } from '../../services/api';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/shared/common';
-import { label } from '../../lib/utils';
 
 // Self-registration. The account is created as "pending" and an administrator
 // must approve it (and choose the final role) before the person can sign in.
@@ -15,7 +13,7 @@ export function SignupPage({ onBack, buyerOnly = false }: { onBack: () => void; 
     phone: '',
     password: '',
     confirm: '',
-    requestedRole: buyerOnly ? 'BUYER' : '',
+    requestedRole: buyerOnly ? 'BUYER' : 'STAFF',
     company: '',
     city: '',
     note: '',
@@ -119,17 +117,6 @@ export function SignupPage({ onBack, buyerOnly = false }: { onBack: () => void; 
                   <span>Confirm password</span>
                   <input type="password" value={form.confirm} onChange={set('confirm')} required minLength={10} autoComplete="new-password" />
                 </label>
-                {!buyerOnly && <label className="field field-wide">
-                  <span>What is your job?</span>
-                  <select value={form.requestedRole} onChange={set('requestedRole')} required>
-                    <option value="">Choose your role</option>
-                    {signupRoles.map((r) => (
-                      <option key={r} value={r}>
-                        {r === 'BUYER' ? 'Buyer (customer company)' : label(r)}
-                      </option>
-                    ))}
-                  </select>
-                </label>}
                 {isBuyer && (
                   <>
                     <label className="field">

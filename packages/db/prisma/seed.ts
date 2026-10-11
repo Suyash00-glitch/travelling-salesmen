@@ -105,11 +105,26 @@ export async function seedRbacAndFacilities(tx: Tx) {
   return { factory, depts, seededRoles };
 }
 
+async function clearDatabase(tx: Tx) {
+  const tablenames = await tx.$queryRaw<Array<{ tablename: string }>>`
+    SELECT tablename FROM pg_tables WHERE schemaname='public'
+  `;
+  const tables = tablenames
+    .map(({ tablename }) => tablename)
+    .filter((name) => name !== '_prisma_migrations')
+    .map((name) => `"${name}"`)
+    .join(', ');
+  if (tables.length > 0) {
+    await tx.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE;`);
+  }
+}
+
 async function seed() {
   const password = process.env.DEMO_PASSWORD ?? 'LoomDemo2026!';
   const hash = await bcrypt.hash(password, 12);
 
   await db.$transaction(async (tx) => {
+    await clearDatabase(tx);
     const { factory, depts, seededRoles } = await seedRbacAndFacilities(tx);
 
     // Buyers & Suppliers
@@ -438,7 +453,7 @@ async function seed() {
     await reportBreakdown(tx, machines[3].id, 'Warp beam tension fault', supervisor);
   }, { timeout: 900000, maxWait: 20000 });
 
-  console.log('LoomOS seeded: 5 months of history (24 completed orders, receipts, bills, wages) plus today\'s floor: 7 live orders.');
+  console.log('LoomOS seeded: 5 months of history (100 orders, receipts, bills, wages) plus today\'s floor: 7 live orders.');
 }
 
 seed().finally(() => db.$disconnect());

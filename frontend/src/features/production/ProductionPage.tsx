@@ -59,11 +59,12 @@ export function ProductionPage() {
   const canRun = hasPermission(user, 'production', 'update');
   const canPlan = hasPermission(user, 'production', 'approve');
   const canCreate = hasPermission(user, 'production', 'create');
-  const canHandover = hasPermission(user, 'attendance', 'manage') || canPlan;
+  const canHandover = hasPermission(user, 'attendance', 'manage') || canPlan || canRun;
   const canRework = canPlan || hasPermission(user, 'quality', 'manage');
   const [search, setSearch] = useState('');
   const [spec, setSpec] = useState<FormSpec | null>(null);
   const [view, setView] = useState<'Pipeline' | 'List'>('Pipeline');
+  const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [showCompleted, setShowCompleted] = useState(false);
 
   if (query.isPending) return <Loading />;
@@ -73,6 +74,7 @@ export function ProductionPage() {
   const completedCount = allJobs.filter((j) => j.status === 'COMPLETED').length;
   const jobs = allJobs
     .filter((j) => showCompleted || j.status !== 'COMPLETED')
+    .filter((j) => selectedStage === 'ALL' || j.stage === selectedStage)
     .filter((j) =>
       `${j.production.number} ${j.production.fabric} ${j.production.order?.buyer.name ?? 'stock'} ${j.production.order?.number ?? ''} ${j.stage}`
         .toLowerCase()
@@ -85,8 +87,8 @@ export function ProductionPage() {
     const started = ['IN_PROGRESS', 'BLOCKED', 'PAUSED'].includes(job.status);
     return job.production.jobs.filter((j) => j.sequence < job.sequence || (started && j.sequence === job.sequence)).map((j) => j.stage);
   };
-  // Operators act only on jobs assigned to them; managers on any.
-  const mine = (job: Job) => !ownStage || job.workerId === user.workerId;
+  // Operators act on jobs in their stage across shifts; managers on any.
+  const mine = (job: Job) => !ownStage || job.stage === ownStage || job.workerId === user.workerId;
   const post = (job: Job, verb: string) => action.mutate({ path: `/production/jobs/${job.id}/${verb}` });
 
   const renderJobCard = (job: Job) => {
@@ -96,7 +98,7 @@ export function ProductionPage() {
     const stopped = ['PAUSED', 'BLOCKED'].includes(job.status);
     const running = job.status === 'IN_PROGRESS';
     const assigned = job.status === 'ASSIGNED';
-    const noAction = job.status === 'READY' && !canPlan;
+    const noAction = job.status === 'READY' && !(canPlan || canRun);
 
     return (
       <article key={job.id} className={`job-card ${job.status === 'BLOCKED' ? 'job-blocked' : ''}`}>
@@ -135,10 +137,10 @@ export function ProductionPage() {
             </span>
           )}
           {noAction && (
-            <span className="muted job-note"><Settings2 size={13} /> Waiting for the production manager to assign a machine and operator</span>
+            <span className="muted job-note"><Settings2 size={13} /> Waiting for machine and operator assignment</span>
           )}
 
-          {job.status === 'READY' && canPlan && (
+          {job.status === 'READY' && (canPlan || canRun) && (
             <Button size="sm" disabled={!lookup.data} onClick={() => setSpec(assignForm(job, job.production.number, lookup.data))}>
               <Settings2 size={13} /> Assign machine & operator
             </Button>
@@ -146,10 +148,10 @@ export function ProductionPage() {
 
           {(assigned || stopped) && canRun && mine(job) && (
             <Button size="sm" disabled={busy} onClick={() => post(job, 'start')} title="Checks the machine, the operator's check-in and the yarn, then starts">
-              <Play size={13} /> {stopped ? 'Start again' : 'Start production'}
+              <Play size={13} /> {stopped ? 'Resume / Start' : 'Start production'}
             </Button>
           )}
-          {(assigned || stopped) && canPlan && (
+          {(assigned || stopped) && (canPlan || canRun) && (
             <Button size="sm" variant="outline" disabled={!lookup.data} onClick={() => setSpec(assignForm(job, job.production.number, lookup.data))}>
               <ArrowLeftRight size={13} /> {stopped ? 'Move' : 'Change'}
             </Button>
@@ -157,20 +159,20 @@ export function ProductionPage() {
 
           {running && canRun && mine(job) && (
             <>
-              <Button size="sm" variant="outline" onClick={() => setSpec(outputForm(job, lookup.data))}>
-                <Plus size={13} /> Output
+              <Button size="sm" variant="outline" onClick={() => setSpec(outputForm(job, lookup.data))} title="Record progress & metre output for this shift">
+                <Plus size={13} /> Output / Progress
               </Button>
-              <Button size="sm" className="button-lime" onClick={() => setSpec(finishForm(job, next, lookup.data))} title="Confirm the final output and hand over">
-                {next ? <ArrowRight size={13} /> : <ShieldCheck size={13} />} Finish · to {next ? label(next) : 'Quality'}
+              <Button size="sm" variant="outline" className="button-destructive-outline" title="Stop / Pause the running process" disabled={busy} onClick={() => post(job, 'pause')}>
+                <Pause size={13} /> Stop / Pause
               </Button>
-              <Button size="icon" variant="outline" title="Pause" aria-label="Pause" disabled={busy} onClick={() => post(job, 'pause')}>
-                <Pause size={13} />
+              <Button size="sm" className="button-lime" onClick={() => setSpec(finishForm(job, next, lookup.data))} title="Confirm the final output and complete this stage">
+                {next ? <ArrowRight size={13} /> : <ShieldCheck size={13} />} Finish stage · {next ? label(next) : 'Quality'}
               </Button>
             </>
           )}
           {(running || job.status === 'PAUSED') && canHandover && job.machineId && (
             <Button size="sm" variant="outline" title="Shift change: another checked-in operator continues on the same machine" onClick={() => setSpec(handoverForm({ ...job, workerName: job.worker?.name, machineCode: job.machine?.code }, job.production.number, lookup.data))}>
-              <Users size={13} /> Hand over
+              <Users size={13} /> Shift handover
             </Button>
           )}
 
@@ -196,11 +198,11 @@ export function ProductionPage() {
   };
 
   const columns = (Object.keys(stageMeta) as (keyof typeof stageMeta)[])
-    .filter((s) => !ownStage || s === ownStage)
+    .filter((s) => selectedStage === 'ALL' || s === selectedStage)
     .map((id) => ({ id, ...stageMeta[id], jobs: jobs.filter((j) => j.stage === id) }));
 
   const description = ownStage
-    ? 'Your jobs. The manager assigns you a machine; you start, record output and finish.'
+    ? 'All machines across company. You can start, record output progress, stop/pause, and complete processes.'
     : canPlan
       ? 'Assign a machine and operator to each stage; the operator starts, records output and hands over.'
       : canHandover
@@ -237,6 +239,11 @@ export function ProductionPage() {
         <div className="segmented-control">
           {(['Pipeline', 'List'] as const).map((t) => (
             <button key={t} className={view === t ? 'active' : ''} onClick={() => setView(t)}>{t === 'Pipeline' ? 'By stage' : 'List'}</button>
+          ))}
+        </div>
+        <div className="segmented-control">
+          {['ALL', 'SPINNING', 'WEAVING', 'DYEING'].map((s) => (
+            <button key={s} className={selectedStage === s ? 'active' : ''} onClick={() => setSelectedStage(s)}>{s === 'ALL' ? 'All stages' : label(s)}</button>
           ))}
         </div>
         <SearchBox value={search} onChange={setSearch} placeholder="Search batch, fabric or buyer…" />

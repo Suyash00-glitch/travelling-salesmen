@@ -18,14 +18,10 @@
     "db:seed": "tsx packages/db/prisma/seed.ts",
     "typecheck": "tsc --noEmit -p backend && tsc --noEmit -p frontend",
     "lint": "eslint backend frontend packages --max-warnings 0",
-    "test": "vitest run",
-    "test:workflows": "vitest run --config vitest.workflows.config.ts",
-    "test:e2e": "playwright test",
     "build": "npm run typecheck && npm run build -w @loomos/web && npm run build -w @loomos/api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
-    "@playwright/test": "^1.56.0",
     "@types/node": "^22.18.0",
     "concurrently": "^9.2.0",
     "dotenv": "^17.2.0",
@@ -34,8 +30,7 @@
     "prisma": "6.19.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "typescript-eslint": "^8.46.0",
-    "vitest": "^5.0.3"
+    "typescript-eslint": "^8.46.0"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",
