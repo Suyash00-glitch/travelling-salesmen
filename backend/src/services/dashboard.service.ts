@@ -20,7 +20,7 @@ export async function dashboard(user: CurrentUser, date?: string) {
   const [orders, machines, rolls, entries, activity, jobs, shipments, materials, shift] = await Promise.all([
     can(user, 'orders') ? orderSummaries(user) : [],
     can(user, 'machines') ? machineSummaries(day) : [],
-    can(user, 'quality') || can(user, 'rolls') ? db.fabricRoll.findMany({ include: { activeShipment: true, production: { select: { orderId: true } } } }) : [],
+    can(user, 'quality') || can(user, 'rolls') ? db.fabricRoll.findMany({ include: { activeShipment: true, production: { select: { orderId: true, number: true, fabric: true, color: true, order: { select: { number: true, buyer: { select: { name: true } } } } } } }, orderBy: { createdAt: 'asc' } }) : [],
     db.productionEntry.findMany({ where: { createdAt: { gte: new Date(day.getTime() - 6 * 86400000), lt: new Date(day.getTime() + 86400000) } } }),
     db.auditLog.findMany({ take: 8, orderBy: { createdAt: 'desc' }, where: !can(user, 'finance') ? { action: { not: { startsWith: 'finance.' } } } : undefined }),
     can(user, 'production')
@@ -133,6 +133,12 @@ export async function dashboard(user: CurrentUser, date?: string) {
     machines,
     // Quality
     pendingQuality: rolls.filter((r) => r.quality === 'PENDING').length,
+    // The inspection queue: rolls nobody has checked yet, oldest first.
+    inspectionQueue: rolls.filter((r) => r.quality === 'PENDING' || r.quality === 'REWORK').slice(0, 10).map((r) => ({
+      id: r.id, code: r.code, length: r.length.toString(), quality: r.quality, since: r.createdAt.toISOString(),
+      batch: r.production.number, fabric: r.production.fabric, color: r.production.color,
+      buyer: r.production.order?.buyer.name ?? 'Finished stock', order: r.production.order?.number ?? null,
+    })),
     passed: rolls.filter((r) => r.quality === 'PASSED').length,
     rework: rolls.filter((r) => r.quality === 'REWORK').length,
     rejected: rolls.filter((r) => r.quality === 'REJECTED').length,

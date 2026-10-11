@@ -34,6 +34,7 @@ interface Dashboard extends Base {
   incoming: number;
   yarnShort: number;
   orderStages: { stage: string; count: number }[];
+  inspectionQueue: { id: string; code: string; length: string; quality: string; since: string; batch: string; fabric: string; color: string; buyer: string; order: string | null }[];
   materials: { material: string; specification: string; onHand: string; reserved: string; available: string; consumed: string; low: boolean }[];
   shift: { current: { name: string; start: string; end: string } | null; checkedIn: { attendanceId: string; worker: { name: string; designation: string }; shift: { name: string } }[]; shifts: { name: string; state: string }[] } | null;
 }
@@ -95,6 +96,9 @@ export function DashboardPage() {
   const showChart = ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'PRODUCTION_MANAGER'].includes(role);
   const showMachines = can(user, 'machines') && d.totalMachines > 0;
   const showQuality = (can(user, 'quality') || can(user, 'rolls')) && (role === 'QUALITY_INSPECTOR' || office);
+  const showQueue = role === 'QUALITY_INSPECTOR';
+  // Roles with nothing for the left column get one full-width column instead of an empty half.
+  const hasLeft = showJobs || role === 'SHIFT_SUPERVISOR' || ['INVENTORY_MANAGER', 'PROCUREMENT_MANAGER'].includes(role) || Boolean(d.finance) || showChart || showOrders || showQueue;
   const f = d.finance;
 
   return (
@@ -113,8 +117,23 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="dashboard-grid">
+      <div className={`dashboard-grid ${hasLeft ? '' : 'dashboard-grid-single'}`}>
         <div className="side-stack">
+          {showQueue && (
+            <Panel title="Waiting for inspection" subtitle={d.pendingQuality ? `${d.pendingQuality} rolls, oldest first` : 'Nothing is waiting'} action={<TextLink onClick={() => navigate('/quality')}>Inspect <ArrowRight size={14} /></TextLink>}>
+              {d.inspectionQueue.length ? (
+                <div className="record-list">
+                  {d.inspectionQueue.map((r) => (
+                    <div className="record" key={r.id} style={{ cursor: 'pointer' }} onClick={() => navigate('/quality')}>
+                      <div><strong>{r.code}</strong> · {r.fabric}, {r.color}<p>{r.batch} · {r.buyer}{r.order ? ` · ${r.order}` : ''} · made {date(r.since)}</p></div>
+                      <div className="cell-stack" style={{ alignItems: 'flex-end' }}><Badge value={r.quality} /><span className="record-meta">{number(r.length)} m</span></div>
+                    </div>
+                  ))}
+                </div>
+              ) : <Empty title="All rolls are inspected" description="New rolls appear here as soon as dyeing finishes." />}
+            </Panel>
+          )}
+
           {showJobs && (
             <Panel title={ownStage ? 'Your jobs' : 'Jobs needing action'} subtitle="Waiting, running, or stuck" action={<TextLink onClick={() => navigate('/production')}>Production floor <ArrowRight size={14} /></TextLink>}>
               <div className="record-list">

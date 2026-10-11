@@ -639,3 +639,7 @@ input::placeholder, textarea::placeholder { color: #6b717b; opacity: 1; }
   .topbar-actions .quick-add .button { width: 38px; padding: 0; justify-content: center; }
   .global-search span { display: none; }
 }
+
+/* Roles with no left-column panels use one column. */
+.dashboard-grid-single { grid-template-columns: 1fr; }
+.dashboard-grid-single > .side-stack:empty { display: none; }
