@@ -8,10 +8,17 @@ import {
   updateRoleSchema,
   factorySchema,
   departmentSchema,
+  approveUserSchema,
+  rejectUserSchema,
+  roleNames,
+  floorRoles,
+  isStandardRole,
+  type Role,
 } from '@loomos/shared';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { ensure, audit } from '../lib/domain.js';
 import { id, page } from '../lib/route-helpers.js';
+import { approveUser, rejectUser } from '../services/user.service.js';
 
 export const rbacRouter = Router();
 
@@ -44,6 +51,12 @@ rbacRouter.get('/users', async (req, res) => {
     role: u.role,
     roles: Array.from(new Set([u.role, ...u.userRoles.map((ur) => ur.role.code)])),
     active: u.active,
+    approvalStatus: u.approvalStatus,
+    requestedRole: u.requestedRole,
+    phone: u.phone,
+    company: u.company,
+    city: u.city,
+    note: u.note,
     buyerId: u.buyerId,
     buyerName: u.buyer?.name,
     workerId: u.workerId,
@@ -58,54 +71,68 @@ rbacRouter.get('/users', async (req, res) => {
   res.json(page(req, formatted));
 });
 
-// Create a new user with multi-role assignment and department scoping
+// Create a user. Floor roles are linked to a worker record and buyers to a buyer company;
+// "NEW" creates that record on the spot, so the account works straight away.
 rbacRouter.post('/users', async (req, res) => {
   const input = userSchema.parse(req.body);
   const { password, roles: assignedRoleCodes = [], ...data } = input;
 
-  const existing = await db.user.findUnique({
-    where: { email: data.email.toLowerCase() },
-  });
-  ensure(!existing, 'A user with this email address already exists.', 409);
-
+  ensure(!(await db.user.findUnique({ where: { email: data.email.toLowerCase() } })), 'A user with this email address already exists.', 409);
+  // Standard roles live in code; custom roles must exist in the database.
+  ensure(isStandardRole(data.role) || (await db.role.findUnique({ where: { code: data.role } })), 'Choose a valid role.', 400);
+  const allRoleCodes = Array.from(new Set([data.role, ...assignedRoleCodes]));
+  const roleRecords = await db.role.findMany({ where: { code: { in: allRoleCodes } } });
   const passwordHash = await bcrypt.hash(password, 12);
-  const roleCode = data.role;
-  const allRoleCodes = Array.from(new Set([roleCode, ...assignedRoleCodes]));
 
-  // Find role records
-  const roleRecords = await db.role.findMany({
-    where: { code: { in: allRoleCodes } },
-  });
+  const user = await db.$transaction(async (tx) => {
+    let workerId = data.workerId || null;
+    if (workerId === 'NEW') {
+      const worker = await tx.worker.create({
+        data: {
+          name: data.name,
+          designation: roleNames[data.role as Role] ?? data.role,
+          initials: data.name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase(),
+          wageType: 'HOURLY',
+          rate: 120,
+          departmentId: data.departmentId || null,
+        },
+      });
+      workerId = worker.id;
+    } else if (workerId) {
+      const worker = await tx.worker.findUnique({ where: { id: workerId }, include: { user: true } });
+      ensure(worker, 'Worker not found.', 404);
+      ensure(!worker.user, `${worker.name} already has a login.`);
+    }
+    ensure(!floorRoles.includes(data.role as Role) || workerId, 'Floor staff must be linked to a worker record (or choose "Create a new worker").', 400);
 
-  const user = await db.user.create({
-    data: {
-      name: data.name,
-      email: data.email.toLowerCase(),
-      passwordHash,
-      role: roleCode,
-      active: data.active ?? true,
-      buyerId: data.buyerId ?? null,
-      workerId: data.workerId ?? null,
-      factoryId: data.factoryId ?? null,
-      departmentId: data.departmentId ?? null,
-      userRoles: {
-        create: roleRecords.map((r) => ({ roleId: r.id })),
+    let buyerId = data.buyerId || null;
+    if (buyerId === 'NEW') {
+      const buyer = await tx.buyer.create({
+        data: { name: data.name, email: data.email.toLowerCase(), city: 'Not set', initials: data.name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase() },
+      });
+      buyerId = buyer.id;
+    } else if (buyerId) {
+      ensure(await tx.buyer.findUnique({ where: { id: buyerId } }), 'Buyer company not found.', 404);
+    }
+    ensure(data.role !== 'BUYER' || buyerId, 'Buyer logins must belong to a buyer company.', 400);
+
+    const created = await tx.user.create({
+      data: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        passwordHash,
+        role: data.role,
+        active: data.active ?? true,
+        buyerId,
+        workerId,
+        factoryId: data.factoryId || null,
+        departmentId: data.departmentId || null,
+        userRoles: { create: roleRecords.map((r) => ({ roleId: r.id })) },
       },
-    },
-    include: {
-      userRoles: { include: { role: true } },
-      factory: true,
-      department: true,
-    },
+    });
+    await audit(tx as unknown as Tx, req.actor, 'rbac.user.created', created.id, `Created ${created.name} (${created.email}) as ${roleNames[data.role as Role] ?? data.role}`);
+    return created;
   });
-
-  await audit(
-    db as unknown as Tx,
-    req.actor,
-    'rbac.user.created',
-    user.id,
-    `Created user ${user.name} (${user.email}) with roles [${allRoleCodes.join(', ')}]`,
-  );
 
   res.status(201).json({ id: user.id, email: user.email, name: user.name });
 });
@@ -167,11 +194,24 @@ rbacRouter.patch('/users/:id', async (req, res) => {
   res.json({ ok: true, id: updated.id });
 });
 
+// Approve a signup and give it a role
+rbacRouter.post('/users/:id/approve', async (req, res) => {
+  const input = approveUserSchema.parse(req.body);
+  res.json(await db.$transaction((tx) => approveUser(tx, id(req), input, req.actor)));
+});
+
+// Decline a signup
+rbacRouter.post('/users/:id/reject', async (req, res) => {
+  const input = rejectUserSchema.parse(req.body);
+  res.json(await db.$transaction((tx) => rejectUser(tx, id(req), input.reason, req.actor)));
+});
+
 // Toggle account activation / suspension
 rbacRouter.post('/users/:id/toggle-status', async (req, res) => {
   const userId = id(req);
   const user = await db.user.findUnique({ where: { id: userId } });
   ensure(user, 'User not found.', 404);
+  ensure(user.approvalStatus === 'APPROVED', 'Approve or decline this signup request instead.', 400);
   ensure(user.id !== req.actor.id, 'You cannot suspend your own account.', 400);
 
   const newActive = !user.active;

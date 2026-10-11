@@ -9,7 +9,8 @@ import {
   verifyRoll,
   confirmShipment,
   cancelShipment,
-} from '../modules/dispatch/dispatch.service.js';
+  deliverShipment,
+} from '../services/dispatch.service.js';
 
 export const dispatchRouter = Router();
 
@@ -23,13 +24,24 @@ dispatchRouter.get('/', async (req, res) => {
     403,
   );
 
+  // Filters: status (DRAFT, DISPATCHED, DELIVERED, CANCELLED), buyerId, orderId. Buyers only see their own.
+  const where: Record<string, unknown> = {};
+  if (req.actor.role === 'BUYER') where.order = { buyerId: req.actor.buyerId ?? 'none' };
+  else if (req.query.buyerId) where.order = { buyerId: String(req.query.buyerId) };
+  if (req.query.orderId) where.orderId = String(req.query.orderId);
+  if (req.query.status) where.status = String(req.query.status);
   const shipments = await db.shipment.findMany({
-    where: req.actor.role === 'BUYER' ? { order: { buyerId: req.actor.buyerId ?? 'none' } } : {},
+    where,
     include: {
-      order: { select: { number: true, buyer: { select: { name: true } } } },
+      order: { select: { number: true, buyer: { select: { name: true, city: true } } } },
       rolls: {
         include: {
-          roll: { select: { id: true, code: true, length: true, quality: true } },
+          roll: {
+            select: {
+              id: true, code: true, length: true, quality: true,
+              production: { select: { fabric: true, color: true } },
+            },
+          },
         },
       },
       invoice: { select: { number: true, total: true, status: true } },
@@ -37,26 +49,54 @@ dispatchRouter.get('/', async (req, res) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  res.json(page(req, shipments));
+  // Real loading history per truck, newest first; the creator is the dispatcher.
+  const logs = await db.auditLog.findMany({
+    where: { entityId: { in: shipments.map((s) => s.id) } },
+    orderBy: { createdAt: 'desc' },
+    select: { entityId: true, action: true, detail: true, actorName: true, createdAt: true },
+  });
+
+  res.json(
+    page(
+      req,
+      shipments.map((s) => {
+        const events = logs.filter((l) => l.entityId === s.id);
+        return {
+          ...s,
+          rolls: s.rolls.map(({ roll: { production, ...roll }, ...row }) => ({
+            ...row,
+            roll: { ...roll, fabric: production.fabric, color: production.color },
+          })),
+          dispatcher: events.find((e) => e.action === 'shipment.created')?.actorName ?? null,
+          events: events.map(({ entityId: _entityId, ...e }) => e),
+        };
+      }),
+    ),
+  );
 });
 
 // Create new shipment
-write(dispatchRouter, '/', 'dispatch', contracts.shipmentSchema, (tx, input, actor) =>
+write(dispatchRouter, '/', 'dispatch:manage', contracts.shipmentSchema, (tx, input, actor) =>
   createShipment(tx, input, actor),
 );
 
 // Verify roll barcode scan
 const verifySchema = z.object({ code: z.string().min(1) });
-write(dispatchRouter, '/:id/verify', 'dispatch', verifySchema, (tx, input, _actor, req) =>
-  verifyRoll(tx, id(req), input.code),
+write(dispatchRouter, '/:id/verify', 'dispatch:manage', verifySchema, (tx, input, actor, req) =>
+  verifyRoll(tx, id(req), input.code, actor),
 );
 
 // Confirm shipment dispatch
-write(dispatchRouter, '/:id/confirm', 'dispatch', empty, (tx, _input, actor, req) =>
+write(dispatchRouter, '/:id/confirm', 'dispatch:manage', empty, (tx, _input, actor, req) =>
   confirmShipment(tx, id(req), actor),
 );
 
+// Goods arrived at the buyer
+write(dispatchRouter, '/:id/deliver', 'dispatch:manage', contracts.deliverSchema, (tx, input, actor, req) =>
+  deliverShipment(tx, id(req), input, actor),
+);
+
 // Cancel shipment
-write(dispatchRouter, '/:id/cancel', 'dispatch', reason, (tx, input, actor, req) =>
+write(dispatchRouter, '/:id/cancel', 'dispatch:manage', reason, (tx, input, actor, req) =>
   cancelShipment(tx, id(req), input.reason, actor),
 );

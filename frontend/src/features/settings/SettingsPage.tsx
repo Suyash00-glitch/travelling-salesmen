@@ -5,8 +5,9 @@ import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
 import { PageHeader, Panel, Badge } from '../../components/shared/common';
 import { DataTable } from '../../components/tables/DataTable';
-import { label } from '../../lib/utils';
+import { label, money } from '../../lib/utils';
 import { UserManagementTab } from './UserManagementTab';
+import { buyerForm, materialForm } from '../forms/quickForms';
 import { RoleManagementTab } from './RoleManagementTab';
 import { FactoryDepartmentTab } from './FactoryDepartmentTab';
 import { AuditLogTab } from './AuditLogTab';
@@ -25,12 +26,15 @@ export function SettingsPage() {
     'Audit trail',
   ];
 
+  const openRecipeModal = () => setSpec(materialForm());
+  const openBuyerModal = () => setSpec(buyerForm());
+
   return (
     <>
       <PageHeader
         eyebrow="SUPER ADMIN CONTROL PANEL"
-        title="Access, Governance & Facilities"
-        description="Enforce enterprise role-based access control, configure manufacturing sites, and review immutable audit records."
+        title="Workspace settings"
+        description="Manage team access, factory sites, fabric recipes and the activity history."
       />
 
       <div className="settings-summary">
@@ -69,63 +73,7 @@ export function SettingsPage() {
           title="Recipes & production routes"
           subtitle="Material planning uses these per-fabric conversions; there is no universal kg-to-metre conversion."
           action={
-            <Button
-              size="sm"
-              onClick={() =>
-                setSpec({
-                  title: 'Create fabric recipe',
-                  path: '/recipes',
-                  fields: [
-                    { name: 'name', label: 'Recipe name' },
-                    { name: 'material', label: 'Material type' },
-                    { name: 'specification', label: 'Yarn specification' },
-                    {
-                      name: 'kgPerMetre',
-                      label: 'Yarn kg per metre',
-                      type: 'number',
-                      min: 0.001,
-                      value: 0.2,
-                    },
-                    {
-                      name: 'wastePercent',
-                      label: 'Planned waste (%)',
-                      type: 'number',
-                      min: 0,
-                      max: 100,
-                      value: 3,
-                    },
-                    {
-                      name: 'overheadPerMetre',
-                      label: 'Overhead / metre (₹)',
-                      type: 'number',
-                      min: 0,
-                      value: 8,
-                    },
-                    {
-                      name: 'route',
-                      label: 'Manufacturing route',
-                      type: 'select',
-                      options: [
-                        { value: 'WEAVING,DYEING', label: 'Weaving → Dyeing' },
-                        {
-                          value: 'SPINNING,WEAVING,DYEING',
-                          label: 'Spinning → Weaving → Dyeing',
-                        },
-                        { value: 'WEAVING', label: 'Weaving only' },
-                        {
-                          value: 'SPINNING,WEAVING',
-                          label: 'Spinning → Weaving',
-                        },
-                      ],
-                    },
-                  ],
-                  transform: (d) => ({
-                    ...d,
-                    route: (d.route as string).split(','),
-                  }),
-                })
-              }
-            >
+            <Button size="sm" onClick={openRecipeModal}>
               <Plus size={14} />
               New recipe
             </Button>
@@ -137,6 +85,7 @@ export function SettingsPage() {
               { accessorKey: 'name', header: 'Fabric recipe' },
               { accessorKey: 'material', header: 'Raw material' },
               { accessorKey: 'specification', header: 'Specification' },
+              { accessorKey: 'pricePerMetre', header: 'Price / m', cell: ({ row }) => <strong>{money((row.original as { pricePerMetre: string }).pricePerMetre)}</strong> },
               { accessorKey: 'kgPerMetre', header: 'kg / m' },
               { accessorKey: 'wastePercent', header: 'Waste %' },
               {
@@ -144,6 +93,21 @@ export function SettingsPage() {
                 header: 'Route',
                 cell: ({ row }) =>
                   (row.original as { route: string[] }).route.map(label).join(' → '),
+              },
+              {
+                id: 'price',
+                header: '',
+                cell: ({ row }) => (
+                  <Button size="sm" variant="outline" onClick={() => setSpec({
+                    title: `Set price · ${(row.original as { name: string }).name}`,
+                    description: 'Buyers see this price when ordering. Orders already placed keep their old price.',
+                    path: `/recipes/${(row.original as { id: string }).id}/price`,
+                    fields: [{ name: 'pricePerMetre', label: 'Price per metre (₹)', type: 'number', min: 0.01, value: Number((row.original as { pricePerMetre: string }).pricePerMetre) }],
+                    submit: 'Save price',
+                  })}>
+                    Set price
+                  </Button>
+                ),
               },
             ]}
           />
@@ -154,20 +118,7 @@ export function SettingsPage() {
         <Panel
           title="Buyer directory"
           action={
-            <Button
-              size="sm"
-              onClick={() =>
-                setSpec({
-                  title: 'Add a buyer',
-                  path: '/buyers',
-                  fields: [
-                    { name: 'name', label: 'Company name' },
-                    { name: 'email', label: 'Email', type: 'email' },
-                    { name: 'city', label: 'City' },
-                  ],
-                })
-              }
-            >
+            <Button size="sm" onClick={openBuyerModal}>
               <Plus size={14} />
               Add buyer
             </Button>

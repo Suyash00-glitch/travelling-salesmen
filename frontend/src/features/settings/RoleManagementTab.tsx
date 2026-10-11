@@ -6,6 +6,10 @@ import {
   Check,
   Edit2,
   Trash2,
+  Shield,
+  ShieldCheck,
+  Layers,
+  KeyRound,
 } from 'lucide-react';
 import {
   type RoleDetail,
@@ -40,6 +44,33 @@ export function RoleManagementTab() {
 
   return (
     <>
+      <div className="summary-strip">
+        <div>
+          <Shield size={20} />
+          <span>
+            <strong>{rolesList.length}</strong>Total roles
+          </span>
+        </div>
+        <div>
+          <ShieldCheck size={20} />
+          <span>
+            <strong>{rolesList.filter((r) => r.isSystem).length}</strong>System roles
+          </span>
+        </div>
+        <div>
+          <Layers size={20} />
+          <span>
+            <strong>{rolesList.filter((r) => !r.isSystem).length}</strong>Custom roles
+          </span>
+        </div>
+        <div>
+          <KeyRound size={20} />
+          <span>
+            <strong>{rolesList.reduce((acc, r) => acc + r.permissions.length, 0)}</strong>Assigned actions
+          </span>
+        </div>
+      </div>
+
       <Panel
         title="Role & Permission Templates"
         subtitle="Manage the 13 standard factory roles and configure granular action permissions (view, create, update, approve, manage)."
@@ -72,7 +103,7 @@ export function RoleManagementTab() {
                     </div>
                   </td>
                   <td>
-                    <code className="text-xs px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono">
+                    <code className="audit-code">
                       {r.code}
                     </code>
                   </td>
@@ -235,36 +266,36 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-5">
           <div className="flex justify-between items-center mb-2">
-            <h4 className="text-xs font-semibold uppercase text-stone-600 dark:text-stone-400">
+            <h4 className="text-xs font-semibold uppercase muted">
               Granular Permission Matrix
             </h4>
-            <span className="text-xs text-stone-500">
+            <span className="text-xs muted">
               {selectedPermissions.size} permissions selected
             </span>
           </div>
 
-          <div className="overflow-x-auto border rounded bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-stone-50 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800 font-semibold text-stone-600 dark:text-stone-400">
+          <div className="matrix-container">
+            <table className="matrix-table">
+              <thead>
                 <tr>
-                  <th className="p-2">Resource</th>
+                  <th>Resource</th>
                   {permissionActions.map((action) => (
-                    <th key={action} className="p-2 text-center uppercase text-[10px]">
+                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>
                       {action}
                     </th>
                   ))}
-                  <th className="p-2 text-right">Quick toggle</th>
+                  <th style={{ textAlign: 'right' }}>Quick toggle</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
+              <tbody>
                 {permissionResources.map((resource) => (
-                  <tr key={resource} className="hover:bg-stone-50 dark:hover:bg-stone-800/50">
-                    <td className="p-2 font-medium capitalize">{label(resource)}</td>
+                  <tr key={resource}>
+                    <td style={{ fontWeight: 600, textTransform: 'capitalize' }}>{label(resource)}</td>
                     {permissionActions.map((action) => {
                       const permCode = `${resource}:${action}`;
                       const isChecked = selectedPermissions.has(permCode);
                       return (
-                        <td key={action} className="p-2 text-center">
+                        <td key={action} style={{ textAlign: 'center' }}>
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -274,11 +305,11 @@ function CreateRoleModal({ onClose }: { onClose: () => void }) {
                         </td>
                       );
                     })}
-                    <td className="p-2 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       <button
                         type="button"
                         onClick={() => toggleResourceAll(resource)}
-                        className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline"
+                        className="text-link"
                       >
                         Toggle all
                       </button>
@@ -311,7 +342,7 @@ function EditPermissionsModal({
 }: {
   role: RoleDetail;
   onClose: () => void;
-}) {
+  }) {
   const client = useQueryClient();
   const [name, setName] = useState(role.name);
   const [description, setDescription] = useState(role.description);
@@ -387,36 +418,36 @@ function EditPermissionsModal({
 
         <div>
           <div className="flex justify-between items-center mb-2">
-            <h4 className="text-xs font-semibold uppercase text-stone-600 dark:text-stone-400">
+            <h4 className="text-xs font-semibold uppercase muted">
               Granular Resource Permissions
             </h4>
-            <span className="text-xs text-stone-500 font-medium">
+            <span className="text-xs muted font-medium">
               {selectedPermissions.size} permissions granted
             </span>
           </div>
 
-          <div className="overflow-x-auto border rounded bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-800 max-h-96">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-stone-50 dark:bg-stone-950 sticky top-0 border-b border-stone-200 dark:border-stone-800 font-semibold text-stone-600 dark:text-stone-400">
+          <div className="matrix-container">
+            <table className="matrix-table">
+              <thead>
                 <tr>
-                  <th className="p-2">Resource</th>
+                  <th>Resource</th>
                   {permissionActions.map((action) => (
-                    <th key={action} className="p-2 text-center uppercase text-[10px]">
+                    <th key={action} style={{ textAlign: 'center', textTransform: 'uppercase', fontSize: '12px' }}>
                       {action}
                     </th>
                   ))}
-                  <th className="p-2 text-right">Quick toggle</th>
+                  <th style={{ textAlign: 'right' }}>Quick toggle</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
+              <tbody>
                 {permissionResources.map((resource) => (
-                  <tr key={resource} className="hover:bg-stone-50 dark:hover:bg-stone-800/50">
-                    <td className="p-2 font-medium capitalize">{label(resource)}</td>
+                  <tr key={resource}>
+                    <td style={{ fontWeight: 600, textTransform: 'capitalize' }}>{label(resource)}</td>
                     {permissionActions.map((action) => {
                       const permCode = `${resource}:${action}`;
                       const isChecked = selectedPermissions.has(permCode);
                       return (
-                        <td key={action} className="p-2 text-center">
+                        <td key={action} style={{ textAlign: 'center' }}>
                           <input
                             type="checkbox"
                             checked={isChecked}
@@ -426,11 +457,11 @@ function EditPermissionsModal({
                         </td>
                       );
                     })}
-                    <td className="p-2 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       <button
                         type="button"
                         onClick={() => toggleResourceAll(resource)}
-                        className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline"
+                        className="text-link"
                       >
                         Toggle all
                       </button>

@@ -7,7 +7,6 @@ import {
   Check,
   Eye,
   EyeOff,
-  UserCheck,
 } from 'lucide-react';
 import { api, setCsrf } from '../../services/api';
 import { Button } from '../../components/ui/button';
@@ -15,29 +14,16 @@ import { Spinner } from '../../components/shared/common';
 
 interface LoginPageProps {
   onSuccess: () => void;
+  onSignup?: () => void;
+  onBuyerSignup?: () => void;
 }
 
-export function LoginPage({ onSuccess }: LoginPageProps) {
-  const [email, setEmail] = useState('owner@loomos.demo');
-  const [password, setPassword] = useState('LoomDemo2026!');
+export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  const demoAccounts = [
-    { label: 'Super Admin', email: 'owner@loomos.demo' },
-    { label: 'Production Mgr', email: 'production@loomos.demo' },
-    { label: 'Spinning Operator', email: 'spinning@loomos.demo' },
-    { label: 'Weaving Operator', email: 'weaving@loomos.demo' },
-    { label: 'Dyeing Operator', email: 'dyeing@loomos.demo' },
-    { label: 'Buyer Portal', email: 'buyer@loomos.demo' },
-  ];
-
-  const handleSelectDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('LoomDemo2026!');
-    setError('');
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -143,45 +129,6 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
               </div>
             </label>
 
-            {/* Quick-fill Demo accounts pills */}
-            <div style={{ margin: '0.25rem 0 0.75rem' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                  fontSize: '0.75rem',
-                  color: 'var(--muted)',
-                  marginBottom: '0.375rem',
-                }}
-              >
-                <UserCheck size={13} />
-                <span>Quick Fill Demo Roles:</span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-                {demoAccounts.map((acc) => (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => handleSelectDemo(acc.email)}
-                    style={{
-                      padding: '3px 8px',
-                      fontSize: '0.75rem',
-                      borderRadius: '5px',
-                      border: '1px solid var(--border)',
-                      background: email === acc.email ? 'var(--accent)' : 'var(--panel)',
-                      color: email === acc.email ? '#fff' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontWeight: email === acc.email ? 600 : 400,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {acc.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {error && <div className="error-banner">{error}</div>}
 
             <Button className="login-submit" disabled={busy}>
@@ -196,13 +143,14 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
             </Button>
           </form>
 
-          <div className="login-demo">
-            <span className="demo-dot" />
-            <div>
-              <strong>Demonstration workspace</strong>
-              <p>Demo accounts use password: <code style={{ fontWeight: 600, color: 'var(--accent)' }}>LoomDemo2026!</code></p>
+          {onSignup && (
+            <div className="auth-switch">
+              <span>New here?</span>
+              <button type="button" onClick={onSignup}>Request a staff account</button>
+              {onBuyerSignup && <><span>·</span><button type="button" onClick={onBuyerSignup}>Create a buyer account</button></>}
+              <small>An administrator approves every new account.</small>
             </div>
-          </div>
+          )}
 
           <div className="login-points">
             <span>

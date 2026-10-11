@@ -11,7 +11,7 @@ import {
   Check,
   ArrowRight,
 } from 'lucide-react';
-import { can, type OrderSummary } from '@loomos/shared';
+import { can, hasPermission, type OrderSummary } from '@loomos/shared';
 import { useData, useAction } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
 import { Button } from '../../components/ui/button';
@@ -74,7 +74,33 @@ export function OrderDetailsPage() {
         description={`${o.items.map((i) => i.fabric).join(' · ')} · Due ${date(o.deadline)}`}
       >
         <Badge value={o.status} />
-        {can(user.role, 'production') && user.role !== 'OPERATOR' && (
+        {/* Buyer requests wait here until a manager accepts or declines them */}
+        {o.status === 'PENDING_REVIEW' && hasPermission(user, 'orders', 'approve') && (
+          <>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setSpec({
+                  title: 'Decline this order',
+                  description: 'The buyer will see this reason on their order.',
+                  path: `/orders/${o.id}/reject`,
+                  fields: [{ name: 'reason', label: 'Reason', type: 'textarea' }],
+                  submit: 'Decline order',
+                })
+              }
+            >
+              Decline
+            </Button>
+            <Button
+              disabled={action.isPending}
+              onClick={() => action.mutate({ path: `/orders/${o.id}/accept` })}
+            >
+              <CheckCircle2 size={16} />
+              Accept & send to spinning
+            </Button>
+          </>
+        )}
+        {hasPermission(user, 'orders', 'approve') && o.status !== 'PENDING_REVIEW' && (
           <>
             <Button
               variant="outline"

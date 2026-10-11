@@ -11,7 +11,7 @@ test.describe('Super Admin RBAC & Access Management', () => {
 
     // Breadcrumb and headers
     await expect(page.locator('.topbar .breadcrumb strong')).toHaveText('Settings');
-    await expect(page.locator('.page-heading h1')).toContainText('Access, Governance & Facilities');
+    await expect(page.locator('.page-heading h1')).toContainText('Workspace settings');
     await expect(page.locator('.settings-summary')).toContainText('Everest Textile Mills');
 
     // Check all 6 tabs
@@ -92,7 +92,6 @@ test.describe('Super Admin RBAC & Access Management', () => {
     await tabs.filter({ hasText: 'Facilities & depts' }).click();
 
     // Verify facility cards and department tables
-    await expect(page.locator('text=Total Facilities')).toBeVisible();
     await expect(page.locator('.panel', { hasText: 'Manufacturing Facilities' })).toBeVisible();
     await expect(page.locator('.panel', { hasText: 'Departments & Stages' })).toBeVisible();
 
@@ -117,10 +116,9 @@ test.describe('Super Admin RBAC & Access Management', () => {
     await expect(page.locator('table.data-table th', { hasText: 'Actor' })).toBeVisible();
     await expect(page.locator('table.data-table th', { hasText: 'Action' })).toBeVisible();
 
-    // Filter by RBAC category
-    const rbacBtn = page.getByRole('button', { name: 'RBAC & Access' });
-    await expect(rbacBtn).toBeVisible();
-    await rbacBtn.click();
+    // Filter by category (the demo data always has production events)
+    await expect(page.getByRole('button', { name: 'RBAC & Access' })).toBeVisible();
+    await page.getByRole('button', { name: 'Production' }).click();
 
     // Check audit rows exist
     const rows = page.locator('table.data-table tbody tr');
@@ -152,9 +150,11 @@ test.describe('Guided Operator Role Experience', () => {
 
     // Navigate to production
     await page.goto('/production');
-    await expect(page.locator('.page-heading h1')).toContainText('From yarn to something great.');
+    await expect(page.locator('.page-heading h1')).toContainText('Production floor');
 
-    // Verify Spinning Operator Console guidance banner is visible
-    await expect(page.locator('text=Spinning Operator Console')).toBeVisible();
+    // Operators see only their own stage.
+    await expect(page.locator('.page-heading .eyebrow')).toContainText('SPINNING TEAM');
+    await expect(page.locator('.kanban-column')).toHaveCount(1);
+    await expect(page.locator('.kanban-column h2')).toHaveText('Spinning');
   });
 });

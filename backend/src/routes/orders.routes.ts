@@ -4,13 +4,15 @@ import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
 import { ensure, audit } from '../lib/domain.js';
-import { page, id, write, empty } from '../lib/route-helpers.js';
-import { orderSummaries } from '../modules/reporting/reporting.service.js';
+import { page, id, write, empty, reason } from '../lib/route-helpers.js';
 import {
+  orderSummaries,
   createOrder,
   planOrder,
+  acceptOrder,
+  rejectOrder,
   materialPlan,
-} from '../modules/orders/orders.service.js';
+} from '../services/order.service.js';
 
 export const ordersRouter = Router();
 
@@ -25,6 +27,9 @@ ordersRouter.get('/', authorize('orders'), async (req, res) => {
   if (req.query.status) {
     data = data.filter((o) => o.status === req.query.status);
   }
+  if (req.query.buyerId) {
+    data = data.filter((o) => o.buyer.id === req.query.buyerId);
+  }
   res.json(page(req, data));
 });
 
@@ -32,8 +37,10 @@ ordersRouter.get('/', authorize('orders'), async (req, res) => {
 ordersRouter.get('/:id', authorize('orders'), async (req, res) => {
   const order = (await orderSummaries(req.actor)).find((o) => o.id === id(req));
   ensure(order, 'Order not found.', 404);
+  // Order events plus everything that happened to its production batches.
+  const batches = await db.productionOrder.findMany({ where: { orderId: order.id }, select: { id: true } });
   const timeline = await db.auditLog.findMany({
-    where: { entityId: order.id },
+    where: { entityId: { in: [order.id, ...batches.map((b) => b.id)] } },
     orderBy: { createdAt: 'asc' },
     select: { action: true, detail: true, createdAt: true },
   });
@@ -45,15 +52,29 @@ ordersRouter.get('/:id/materials', authorize('inventory'), async (req, res) => {
   res.json(await materialPlan(id(req)));
 });
 
-// Create new sales order
-write(ordersRouter, '/', 'production', contracts.orderSchema, (tx, input, actor) =>
-  createOrder(tx, input, actor),
-);
+// Create new sales order. Buyer requests wait for review; office orders start right away.
+write(ordersRouter, '/', 'orders:create', contracts.orderSchema, async (tx, input, actor) => {
+  if (actor.role === 'BUYER') {
+    ensure(actor.buyerId, 'Your login is not linked to a buyer account.', 403);
+    return createOrder(tx, { ...input, buyerId: actor.buyerId }, actor, 'PENDING_REVIEW');
+  }
+  const order = await createOrder(tx, input, actor);
+  try {
+    await planOrder(tx, order.id, actor);
+  } catch {
+    // If auto-planning has missing recipes or prerequisites, keep order CONFIRMED
+  }
+  return order;
+});
+
+// Accept a buyer request: confirms it and sends it to spinning
+write(ordersRouter, '/:id/accept', 'orders:approve', empty, (tx, _input, actor, req) => acceptOrder(tx, id(req), actor));
+
+// Decline a buyer request with a reason the buyer can see
+write(ordersRouter, '/:id/reject', 'orders:approve', reason, (tx, input, actor, req) => rejectOrder(tx, id(req), input.reason, actor));
 
 // Plan production jobs for order
-write(ordersRouter, '/:id/plan', 'production', empty, (tx, _input, actor, req) =>
-  planOrder(tx, id(req), actor),
-);
+write(ordersRouter, '/:id/plan', 'orders:approve', empty, (tx, _input, actor, req) => planOrder(tx, id(req), actor));
 
 // Edit order priority, deadline, instructions
 const editOrderSchema = z.object({
@@ -62,7 +83,7 @@ const editOrderSchema = z.object({
   instructions: z.string().max(2000),
 });
 
-write(ordersRouter, '/:id/edit', 'production', editOrderSchema, async (tx, input, actor, req) => {
+write(ordersRouter, '/:id/edit', 'orders:approve', editOrderSchema, async (tx, input, actor, req) => {
   const order = await tx.salesOrder.findUnique({ where: { id: id(req) } });
   ensure(order && !['COMPLETED', 'CANCELLED'].includes(order.status), 'Order is closed or missing.');
   const updated = await tx.salesOrder.update({

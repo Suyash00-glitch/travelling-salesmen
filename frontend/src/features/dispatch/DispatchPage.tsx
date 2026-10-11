@@ -1,16 +1,215 @@
-import {useState} from 'react';
-import {useMutation,useQueryClient} from '@tanstack/react-query';
-import {toast} from 'sonner';
-import {Truck,Plus,ScanLine,Check,ArrowRight,PackageCheck,FileText} from 'lucide-react';
-import type {OrderSummary,RollSummary,PageResponse} from '@loomos/shared';
-import {useData,useAction} from '../../hooks/useFactory';
-import {api} from '../../services/api';
-import {Button} from '../../components/ui/button';
-import {Modal} from '../../components/ui/dialog';
-import {ActionForm,type FormSpec} from '../../components/shared/ActionForm';
-import {PageHeader,Panel,Loading,ErrorState,Badge,SearchBox,Empty,Spinner} from '../../components/shared/common';
-import {ScanDialog} from '../quality/QualityPage';
-import {number,date,money} from '../../lib/utils';
-export interface ShipmentView {id:string;number:string;status:string;transport:string;quantity:string;createdAt:string;confirmedAt:string|null;order:{number:string;buyer:{name:string}};rolls:{id:string;verified:boolean;roll:{id:string;code:string;length:string;quality:string}}[];invoice:{number:string;total:string;status:string}|null}
-export function DispatchPage({buyer=false}:{buyer?:boolean}){const query=useData<PageResponse<ShipmentView>>('/shipments?pageSize=100');const [create,setCreate]=useState(false);const [scan,setScan]=useState<string|null>(null);const [spec,setSpec]=useState<FormSpec|null>(null);const [invoice,setInvoice]=useState<ShipmentView|null>(null);const [search,setSearch]=useState('');const action=useAction();if(query.isPending)return <Loading/>;if(query.error)return <ErrorState error={query.error} retry={()=>void query.refetch()}/>;return <><PageHeader eyebrow="WAREHOUSE TO THE WORLD" title={buyer?'Your deliveries.':'The final mile, done right.'} description="The right rolls. The right buyer. Every dispatch accounted for.">{!buyer&&<Button onClick={()=>setCreate(true)}><Plus size={16}/>Create dispatch</Button>}</PageHeader><div className="summary-strip"><div><Truck size={20}/><span><strong>{query.data!.data.filter(s=>s.status==='DRAFT').length}</strong>Awaiting dispatch</span></div><div><PackageCheck size={20}/><span><strong>{query.data!.data.filter(s=>s.status==='DISPATCHED').length}</strong>Dispatched</span></div><div><Check size={20}/><span><strong>{number(query.data!.data.filter(s=>s.status==='DISPATCHED').reduce((a,s)=>a+Number(s.quantity),0))} m</strong>Delivered to transport</span></div></div><div className="section-toolbar"><h2>Shipment workspace</h2><SearchBox value={search} onChange={setSearch} placeholder="Search shipments…"/></div><div className="shipment-grid">{query.data!.data.filter(s=>`${s.number} ${s.order.buyer.name}`.toLowerCase().includes(search.toLowerCase())).map(shipment=><Panel key={shipment.id} className="shipment-card"><div className="shipment-heading"><span className="shipment-icon"><Truck size={22}/></span><div><h3>{shipment.number}</h3><small>{date(shipment.createdAt)}</small></div><Badge value={shipment.status}/></div><div className="shipment-route"><div><small>FROM</small><strong>Everest Textile Mills</strong></div><ArrowRight size={21}/><div><small>TO</small><strong>{shipment.order.buyer.name}</strong></div></div><div className="shipment-order"><span>{shipment.order.number}</span><strong>{number(shipment.quantity)} m <small>· {shipment.rolls.length} rolls</small></strong></div><div className="shipment-rolls">{shipment.rolls.map(row=><div key={row.id}><span className={row.verified?'roll-verified':''}>{row.verified?<Check size={13}/>:<ScanLine size={13}/>}</span><strong>{row.roll.code}</strong><small>{number(row.roll.length)} m</small><Badge value={row.verified?'PASSED':'PENDING'}>{row.verified?'Verified':'Verify label'}</Badge></div>)}</div><div className="shipment-transport"><Truck size={15}/>{shipment.transport}</div><div className="shipment-actions">{shipment.status==='DRAFT'&&!buyer&&<><Button variant="outline" size="sm" onClick={()=>setScan(shipment.id)}><ScanLine size={15}/>Verify roll</Button><Button size="sm" disabled={action.isPending||shipment.rolls.some(r=>!r.verified)} onClick={()=>action.mutate({path:`/shipments/${shipment.id}/confirm`})}>Confirm dispatch<ArrowRight size={14}/></Button></>}{shipment.invoice&&<Button size="sm" variant="outline" onClick={()=>setInvoice(shipment)}><FileText size={14}/>View invoice</Button>}{shipment.status!=='CANCELLED'&&!buyer&&<button className="subtle-danger" onClick={()=>setSpec({title:'Cancel shipment',description:'This releases the rolls back to stock and voids any unpaid invoice. The reversal remains in the audit trail.',path:`/shipments/${shipment.id}/cancel`,fields:[{name:'reason',label:'Cancellation reason',type:'textarea',span:true}],submit:'Confirm cancellation'})}>Cancel</button>}</div></Panel>)}</div>{!query.data!.data.length&&<Panel><Empty title="Ready when your rolls are" description="Create a dispatch from quality-approved finished rolls."/></Panel>}{create&&<NewShipment onClose={()=>setCreate(false)}/>} {scan&&<ScanDialog onClose={()=>setScan(null)} onScan={code=>{action.mutate({path:`/shipments/${scan}/verify`,body:{code}});setScan(null);}}/>}{spec&&<ActionForm spec={spec} onClose={()=>setSpec(null)}/>} {invoice&&<Modal open onClose={()=>setInvoice(null)} title={invoice.invoice!.number} description="Everest Textile Mills · Sales invoice"><div className="invoice-paper"><div className="invoice-brand">LoomOS<span>SALES INVOICE</span></div><p>Bill to <strong>{invoice.order.buyer.name}</strong></p><dl className="detail-list"><div><dt>Order</dt><dd>{invoice.order.number}</dd></div><div><dt>Shipment</dt><dd>{invoice.number}</dd></div><div><dt>Fabric delivered</dt><dd>{number(invoice.quantity)} metres</dd></div>{invoice.rolls.map(r=><div key={r.id}><dt>{r.roll.code}</dt><dd>{number(r.roll.length)} m</dd></div>)}</dl><div className="invoice-total"><span>Total (INR)</span><strong>{money(invoice.invoice!.total)}</strong></div><small>Operational invoice. Taxes are not calculated in this release.</small></div><div className="dialog-footer"><Button onClick={()=>window.print()}>Print invoice</Button></div></Modal>}</>;}
-function NewShipment({onClose}:{onClose:()=>void}){const orders=useData<PageResponse<OrderSummary>>('/orders?pageSize=100');const rolls=useData<PageResponse<RollSummary>>('/rolls?pageSize=100');const [orderId,setOrderId]=useState('');const [selected,setSelected]=useState<string[]>([]);const [transport,setTransport]=useState('');const client=useQueryClient();const available=rolls.data?.data.filter(r=>r.quality==='PASSED'&&!r.activeShipmentId&&r.production.item.order.id===orderId)??[];const mutation=useMutation({mutationFn:()=>api('/shipments',{orderId,rollIds:selected,transport}),onSuccess:()=>{void client.invalidateQueries();toast.success('Dispatch created. Verify each roll before confirming.');onClose();}});return <Modal open onClose={onClose} title="Prepare a dispatch" description="Only available, quality-approved rolls can be selected." wide><form onSubmit={e=>{e.preventDefault();mutation.mutate();}}><div className="form-grid"><label className="field"><span>Buyer order *</span><select required value={orderId} onChange={e=>{setOrderId(e.target.value);setSelected([]);}}><option value="">Select an order</option>{orders.data?.data.filter(o=>!['COMPLETED','CANCELLED'].includes(o.status)).map(o=><option key={o.id} value={o.id}>{o.number} · {o.buyer.name}</option>)}</select></label><label className="field"><span>Truck / transport reference *</span><input required value={transport} onChange={e=>setTransport(e.target.value)} placeholder="Vehicle registration · Carrier"/></label></div><div className="roll-selection">{available.map(r=><label key={r.id}><input type="checkbox" checked={selected.includes(r.id)} onChange={e=>setSelected(s=>e.target.checked?[...s,r.id]:s.filter(id=>id!==r.id))}/><span className="roll-icon"><PackageCheck size={20}/></span><div><strong>{r.code}</strong><small>{r.production.item.fabric} · {r.production.item.color}</small></div><b>{number(r.length)} m</b></label>)}{!available.length&&<Empty title={orderId?'No available rolls for this order':'Choose a buyer order'} description="Passed, unreserved rolls will appear here."/>}</div><div className="selection-total">{selected.length} rolls selected<strong>{number(available.filter(r=>selected.includes(r.id)).reduce((s,r)=>s+Number(r.length),0))} m</strong></div>{mutation.error&&<div className="error-banner">{mutation.error.message}</div>}<div className="dialog-footer"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!selected.length||mutation.isPending}>{mutation.isPending?<Spinner/>:<Truck size={16}/>}Create dispatch</Button></div></form></Modal>;}
+import { useState } from 'react';
+import { Truck, Plus, ScanLine, Check, PackageCheck, ClipboardList, Ban, MapPin, Clock } from 'lucide-react';
+import { hasPermission, type PageResponse } from '@loomos/shared';
+import { useData, useAction, useLookups } from '../../hooks/useFactory';
+import { useAuth } from '../auth/Auth';
+import { Button } from '../../components/ui/button';
+import { Modal } from '../../components/ui/dialog';
+import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
+import { FilterBar, useFilters } from '../../components/shared/FilterBar';
+import { PageHeader, Panel, Loading, ErrorState, Badge, SearchBox, Empty, Kpi } from '../../components/shared/common';
+import { DataTable } from '../../components/tables/DataTable';
+import { ScanDialog } from '../quality/ScanDialog';
+import { number, date, money } from '../../lib/utils';
+import { NewShipment } from './NewShipment';
+
+export interface ShipmentView {
+  id: string;
+  number: string;
+  status: string;
+  transport: string;
+  driverName: string;
+  driverPhone: string;
+  quantity: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  expectedAt: string | null;
+  deliveredAt: string | null;
+  receivedBy: string;
+  dispatcher: string | null;
+  events: { action: string; detail: string; actorName: string; createdAt: string }[];
+  order: { number: string; buyer: { name: string; city?: string } };
+  rolls: { id: string; verified: boolean; roll: { id: string; code: string; length: string; quality: string; fabric: string; color: string } }[];
+  invoice: { number: string; total: string; status: string } | null;
+}
+
+// Status tabs keep pending work apart from finished deliveries.
+const tabs = [
+  { key: 'DRAFT', title: 'Ready to dispatch' },
+  { key: 'DISPATCHED', title: 'On the road' },
+  { key: 'DELIVERED', title: 'Delivered' },
+  { key: 'CANCELLED', title: 'Cancelled' },
+];
+
+const isLate = (s: ShipmentView) => s.status === 'DISPATCHED' && !!s.expectedAt && new Date(s.expectedAt) < new Date();
+
+export function DispatchPage({ buyer = false }: { buyer?: boolean }) {
+  const { user } = useAuth();
+  const lookups = useLookups();
+  const filters = useFilters(['buyerId']);
+  const query = useData<PageResponse<ShipmentView>>(`/shipments?pageSize=100${filters.query ? `&${filters.query}` : ''}`);
+  const [tab, setTab] = useState('DRAFT');
+  const [create, setCreate] = useState(false);
+  const [scan, setScan] = useState<string | null>(null);
+  const [spec, setSpec] = useState<FormSpec | null>(null);
+  const [manifest, setManifest] = useState<ShipmentView | null>(null);
+  const [search, setSearch] = useState('');
+  const action = useAction();
+  const canManage = !buyer && hasPermission(user, 'dispatch', 'update');
+
+  if (query.isPending) return <Loading />;
+  if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
+
+  const all = query.data?.data ?? [];
+  const rows = all
+    .filter((s) => s.status === tab)
+    .filter((s) => `${s.number} ${s.order.number} ${s.order.buyer.name} ${s.transport}`.toLowerCase().includes(search.toLowerCase()));
+  const count = (key: string) => all.filter((s) => s.status === key).length;
+  const late = all.filter(isLate);
+
+  const deliverForm = (s: ShipmentView): FormSpec => ({
+    title: `Delivered · ${s.number}`,
+    description: `${s.order.buyer.name} · ${number(s.quantity)} m`,
+    path: `/shipments/${s.id}/deliver`,
+    fields: [
+      { name: 'receivedBy', label: 'Received by', required: false },
+      { name: 'note', label: 'Note', required: false, span: true },
+    ],
+    submit: 'Mark delivered',
+  });
+
+  const cancelForm = (s: ShipmentView): FormSpec => ({
+    title: `Cancel ${s.number}`,
+    description: 'Rolls go back to finished stock. Invoiced shipments are voided if nothing has been paid.',
+    path: `/shipments/${s.id}/cancel`,
+    fields: [{ name: 'reason', label: 'Reason', type: 'textarea', span: true }],
+    submit: 'Cancel shipment',
+  });
+
+  function actionsFor(s: ShipmentView) {
+    const verified = s.rolls.every((r) => r.verified);
+    return (
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {canManage && s.status === 'DRAFT' && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setScan(s.id)}><ScanLine size={14} /> Verify roll</Button>
+            <Button size="sm" disabled={action.isPending || !verified} title={verified ? undefined : 'Verify every roll label first'} onClick={() => action.mutate({ path: `/shipments/${s.id}/confirm` })}>
+              <Check size={14} /> Confirm · truck leaves
+            </Button>
+          </>
+        )}
+        {canManage && s.status === 'DISPATCHED' && (
+          <Button size="sm" onClick={() => setSpec(deliverForm(s))}><PackageCheck size={14} /> Delivered</Button>
+        )}
+        {canManage && ['DRAFT', 'DISPATCHED'].includes(s.status) && (
+          <Button variant="outline" size="icon" title="Cancel" onClick={() => setSpec(cancelForm(s))}><Ban size={14} /></Button>
+        )}
+        <Button variant="outline" size="sm" onClick={() => setManifest(s)}><ClipboardList size={14} /> Details</Button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!buyer && (
+        <PageHeader eyebrow="LOGISTICS" title="Dispatch" description="Load passed rolls, verify labels, confirm the truck, then mark it delivered.">
+          {canManage && (
+            <Button onClick={() => setCreate(true)}><Plus size={16} /> New dispatch</Button>
+          )}
+        </PageHeader>
+      )}
+
+      <div className="kpi-grid">
+        <Kpi label="Ready to dispatch" value={count('DRAFT')} icon={<Truck size={19} />} meta={`${all.filter((s) => s.status === 'DRAFT').reduce((n, s) => n + s.rolls.filter((r) => !r.verified).length, 0)} labels still to scan`} accent />
+        <Kpi label="On the road" value={count('DISPATCHED')} icon={<MapPin size={19} />} meta={`${number(all.filter((s) => s.status === 'DISPATCHED').reduce((n, s) => n + Number(s.quantity), 0))} m in transit`} />
+        <Kpi label="Late" value={late.length} icon={<Clock size={19} />} meta={late.map((s) => s.number).join(', ') || 'Nothing overdue'} />
+        <Kpi label="Delivered" value={count('DELIVERED')} icon={<PackageCheck size={19} />} meta={`${number(all.filter((s) => s.status === 'DELIVERED').reduce((n, s) => n + Number(s.quantity), 0))} m delivered`} />
+      </div>
+
+      <Panel>
+        <div className="table-toolbar">
+          <div className="tabs">
+            {tabs.map((t) => (
+              <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+                {t.title} <span>{count(t.key)}</span>
+              </button>
+            ))}
+          </div>
+          <SearchBox value={search} onChange={setSearch} placeholder="Shipment, order, buyer or truck…" />
+        </div>
+        {!buyer && (
+          <FilterBar
+            filters={[{ name: 'buyerId', label: 'Customer', options: (lookups.data?.buyers ?? []).map((b) => ({ value: b.id, label: b.name })) }]}
+            values={filters.values} onChange={filters.setValue} onClear={filters.clear} active={filters.active}
+          />
+        )}
+        {rows.length ? (
+          <DataTable
+            data={rows}
+            columns={[
+              { accessorKey: 'number', header: 'Dispatch', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.number}</strong><span>{row.original.transport}{row.original.driverName ? ` · ${row.original.driverName}` : ''}</span></div> },
+              { id: 'order', header: 'Customer / order', cell: ({ row }) => <div className="cell-stack"><strong>{row.original.order.buyer.name}</strong><span>{row.original.order.number}</span></div> },
+              { id: 'goods', header: 'Goods', cell: ({ row }) => <div className="cell-stack"><strong>{number(row.original.quantity)} m · {row.original.rolls.length} rolls</strong><span>{[...new Set(row.original.rolls.map((r) => `${r.roll.fabric} · ${r.roll.color}`))].join(', ')}</span></div> },
+              {
+                id: 'dates', header: 'Dates',
+                cell: ({ row }) => {
+                  const s = row.original;
+                  return <div className="cell-stack">
+                    <span>{s.status === 'DRAFT' ? `Created ${date(s.createdAt)}` : s.confirmedAt ? `Left ${date(s.confirmedAt)}` : ''}</span>
+                    <span>{s.deliveredAt ? `Delivered ${date(s.deliveredAt)}` : s.expectedAt ? `Expected ${date(s.expectedAt)}` : ''}</span>
+                  </div>;
+                },
+              },
+              { accessorKey: 'status', header: 'Status', cell: ({ row }) => <span style={{ display: 'flex', gap: 4 }}><Badge value={row.original.status === 'DRAFT' ? 'PENDING' : row.original.status}>{row.original.status === 'DRAFT' ? 'Ready' : row.original.status === 'DISPATCHED' ? 'In transit' : row.original.status === 'DELIVERED' ? 'Delivered' : 'Cancelled'}</Badge>{isLate(row.original) && <Badge value="REJECTED">Late</Badge>}</span> },
+              { id: 'actions', header: '', cell: ({ row }) => actionsFor(row.original) },
+            ]}
+          />
+        ) : (
+          <Empty title={tab === 'DRAFT' ? 'No shipments waiting' : 'Nothing here'} description={tab === 'DRAFT' && canManage ? 'Create a dispatch from quality-passed rolls.' : 'Shipments appear here as their status changes.'} action={tab === 'DRAFT' && canManage ? <Button onClick={() => setCreate(true)}><Plus size={15} /> Create dispatch</Button> : undefined} />
+        )}
+      </Panel>
+
+      {manifest && (
+        <Modal open onClose={() => setManifest(null)} title={`${manifest.number} · ${manifest.order.buyer.name}`} description={`${manifest.order.number} · ${manifest.transport}${manifest.driverName ? ` · ${manifest.driverName} ${manifest.driverPhone}` : ''}`}>
+          <div className="batch-flags" style={{ marginBottom: 12 }}>
+            <Badge value={manifest.status} />
+            {manifest.invoice && <span className="flag">Invoice {manifest.invoice.number} · {money(manifest.invoice.total)} · {manifest.invoice.status}</span>}
+            {manifest.expectedAt && <span className="flag">Expected {date(manifest.expectedAt)}</span>}
+            {manifest.deliveredAt && <span className="flag stock">Delivered {date(manifest.deliveredAt)}{manifest.receivedBy ? ` · ${manifest.receivedBy}` : ''}</span>}
+          </div>
+          <div className="record-list">
+            {manifest.rolls.map((r) => (
+              <div className="record" key={r.id}>
+                <div><strong>{r.roll.code}</strong> · {r.roll.fabric} · {r.roll.color}</div>
+                <span className="record-meta">{number(r.roll.length)} m · {r.verified ? 'Scanned' : 'Not scanned'}</span>
+              </div>
+            ))}
+          </div>
+          {manifest.events.length > 0 && (
+            <div className="history-list" style={{ marginTop: 14 }}>
+              {manifest.events.map((e, i) => (
+                <div key={i}><p>{e.detail}</p><small>{e.actorName} · {new Date(e.createdAt).toLocaleString('en-IN')}</small></div>
+              ))}
+            </div>
+          )}
+          <div className="dialog-footer">
+            <Button variant="outline" onClick={() => window.print()}>Print</Button>
+            <Button onClick={() => setManifest(null)}>Close</Button>
+          </div>
+        </Modal>
+      )}
+
+      {scan && (
+        <ScanDialog
+          onClose={() => setScan(null)}
+          onScan={(code) => {
+            action.mutate({ path: `/shipments/${scan}/verify`, body: { code } });
+            setScan(null);
+          }}
+        />
+      )}
+      {create && <NewShipment onClose={() => setCreate(false)} />}
+      {spec && <ActionForm spec={spec} onClose={() => setSpec(null)} />}
+    </>
+  );
+}

@@ -11,6 +11,8 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // The introduction animation skips itself under reduced motion, so sign-in is immediate.
+    reducedMotion: 'reduce',
   },
   projects: [
     {

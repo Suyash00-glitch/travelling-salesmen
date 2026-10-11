@@ -9,9 +9,9 @@ test.describe('Authentication Flow', () => {
     await expect(page.getByRole('heading', { level: 2, name: /A good day starts here/i })).toBeVisible();
     await expect(page.getByText('Everest Textile Mills')).toBeVisible();
 
-    // Check default email is populated with owner demo account
+    // The form starts empty: no demo account is filled in for you.
     const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toHaveValue('owner@loomos.demo');
+    await expect(emailInput).toHaveValue('');
 
     // Test password show/hide toggle
     const passwordInput = page.locator('input[placeholder="Enter your password"]');
@@ -30,6 +30,7 @@ test.describe('Authentication Flow', () => {
   test('displays error message on invalid credentials', async ({ page }) => {
     await page.goto('/');
 
+    await page.locator('input[type="email"]').fill('owner@loomos.demo');
     const passwordInput = page.locator('input[placeholder="Enter your password"]');
     await passwordInput.fill('WrongPassword123!');
 
@@ -44,6 +45,7 @@ test.describe('Authentication Flow', () => {
   test('successfully logs in with demo credentials into workspace and can log out', async ({ page }) => {
     await page.goto('/');
 
+    await page.locator('input[type="email"]').fill('owner@loomos.demo');
     const passwordInput = page.locator('input[placeholder="Enter your password"]');
     await passwordInput.fill('LoomDemo2026!');
 

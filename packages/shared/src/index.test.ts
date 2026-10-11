@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   can,
   roles,
-  permissions,
+  permissionResources,
   hasPermission,
   loginSchema,
   orderSchema,
@@ -25,13 +25,13 @@ describe('Shared Package - Roles & Permissions', () => {
     expect(roles).toEqual([
       'SUPER_ADMIN',
       'ADMIN',
+      'OPERATIONS_MANAGER',
       'PRODUCTION_MANAGER',
       'INVENTORY_MANAGER',
       'PROCUREMENT_MANAGER',
       'SPINNING_OPERATOR',
       'WEAVING_OPERATOR',
       'DYEING_OPERATOR',
-      'OPERATOR',
       'QUALITY_INSPECTOR',
       'DISPATCH_MANAGER',
       'SHIFT_SUPERVISOR',
@@ -42,7 +42,7 @@ describe('Shared Package - Roles & Permissions', () => {
   });
 
   it('allows ADMIN and SUPER_ADMIN access to every area including settings', () => {
-    const areas = Object.keys(permissions) as Area[];
+    const areas = permissionResources.filter((r) => r !== 'users' && r !== 'roles') as Area[];
     for (const area of areas) {
       expect(can('ADMIN', area)).toBe(true);
       expect(can('SUPER_ADMIN', area)).toBe(true);
@@ -59,9 +59,7 @@ describe('Shared Package - Roles & Permissions', () => {
     expect(can('BUYER', 'settings')).toBe(false);
   });
 
-  it('allows OPERATOR, SPINNING_OPERATOR, and WEAVING_OPERATOR to access production and machines', () => {
-    expect(can('OPERATOR', 'production')).toBe(true);
-    expect(can('OPERATOR', 'machines')).toBe(true);
+  it('lets stage operators see production and machines but nothing else', () => {
     expect(can('SPINNING_OPERATOR', 'production')).toBe(true);
     expect(can('SPINNING_OPERATOR', 'machines')).toBe(true);
     expect(can('WEAVING_OPERATOR', 'production')).toBe(true);
@@ -121,7 +119,7 @@ describe('Shared Package - Granular RBAC & Permission Matrix', () => {
 
   it('supports custom permissions assigned directly to user', () => {
     const customUser = {
-      role: 'OPERATOR',
+      role: 'CUSTOM_CLERK',
       permissions: ['orders:view', 'inventory:view'],
     };
     expect(hasPermission(customUser, 'orders', 'view')).toBe(true);
@@ -149,29 +147,40 @@ describe('Shared Package - Zod Validation Schemas', () => {
   });
 
   describe('orderSchema', () => {
+    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
     it('validates valid order payload with line items', () => {
       const valid = orderSchema.safeParse({
         buyerId: 'buyer-1',
-        deadline: '2026-11-01',
+        deadline: nextWeek,
         priority: 'HIGH',
         instructions: 'Handle with care',
-        items: [
-          {
-            recipeId: 'recipe-1',
-            fabric: 'Cotton poplin',
-            color: 'Navy',
-            quantity: 1200,
-            price: 250,
-          },
-        ],
+        items: [{ recipeId: 'recipe-1', color: 'Navy', quantity: 1200 }],
       });
       expect(valid.success).toBe(true);
+    });
+
+    it('ignores any price sent by the client', () => {
+      const parsed = orderSchema.parse({
+        buyerId: 'buyer-1',
+        deadline: nextWeek,
+        items: [{ recipeId: 'recipe-1', color: 'Navy', quantity: 10, price: 0 }],
+      });
+      expect(parsed.items[0]).not.toHaveProperty('price');
+    });
+
+    it('rejects delivery dates that are today or in the past', () => {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      for (const deadline of [today, '2020-01-01']) {
+        const res = orderSchema.safeParse({ buyerId: 'b', deadline, items: [{ recipeId: 'r', color: 'Navy', quantity: 10 }] });
+        expect(res.success).toBe(false);
+      }
     });
 
     it('rejects orders with empty line items', () => {
       const invalid = orderSchema.safeParse({
         buyerId: 'buyer-1',
-        deadline: '2026-11-01',
+        deadline: nextWeek,
         priority: 'NORMAL',
         items: [],
       });
@@ -181,17 +190,9 @@ describe('Shared Package - Zod Validation Schemas', () => {
     it('rejects zero or negative quantities', () => {
       const invalid = orderSchema.safeParse({
         buyerId: 'buyer-1',
-        deadline: '2026-11-01',
+        deadline: nextWeek,
         priority: 'NORMAL',
-        items: [
-          {
-            recipeId: 'recipe-1',
-            fabric: 'Cotton poplin',
-            color: 'Navy',
-            quantity: 0,
-            price: 250,
-          },
-        ],
+        items: [{ recipeId: 'recipe-1', color: 'Navy', quantity: 0 }],
       });
       expect(invalid.success).toBe(false);
     });
@@ -266,6 +267,7 @@ describe('Shared Package - Zod Validation Schemas', () => {
         kgPerMetre: 0.22,
         wastePercent: 3,
         overheadPerMetre: 10,
+        pricePerMetre: 180,
         route: ['WEAVING', 'DYEING'],
       });
       expect(res.success).toBe(true);
@@ -279,6 +281,7 @@ describe('Shared Package - Zod Validation Schemas', () => {
         kgPerMetre: 0.22,
         wastePercent: 3,
         overheadPerMetre: 10,
+        pricePerMetre: 180,
         route: ['WEAVING', 'WEAVING'],
       });
       expect(res.success).toBe(false);
@@ -386,13 +389,10 @@ describe('Shared Package - Zod Validation Schemas', () => {
   });
 
   describe('assignmentSchema', () => {
-    it('validates assignment of machine, worker and shift', () => {
-      const res = assignmentSchema.safeParse({
-        machineId: 'm-1',
-        workerId: 'w-1',
-        shiftId: 's-1',
-      });
-      expect(res.success).toBe(true);
+    it('requires both a machine and a worker', () => {
+      expect(assignmentSchema.safeParse({ machineId: 'm-1', workerId: 'w-1' }).success).toBe(true);
+      expect(assignmentSchema.safeParse({ machineId: 'm-1' }).success).toBe(false);
+      expect(assignmentSchema.safeParse({ workerId: 'w-1' }).success).toBe(false);
     });
   });
 

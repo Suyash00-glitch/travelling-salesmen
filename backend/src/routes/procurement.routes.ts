@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '@loomos/db';
 import * as contracts from '@loomos/shared';
 import { authorize } from '../middleware/auth.js';
-import { code, audit, ensure } from '../lib/domain.js';
+import { code, audit } from '../lib/domain.js';
 import { page, write } from '../lib/route-helpers.js';
 
 export const procurementRouter = Router();
@@ -17,7 +17,7 @@ procurementRouter.get('/purchases', authorize('procurement'), async (req, res) =
 });
 
 // Create new purchase order
-write(procurementRouter, '/purchases', 'inventory', contracts.purchaseSchema, async (tx, input, actor) => {
+write(procurementRouter, '/purchases', ['procurement:create', 'procurement:manage'], contracts.purchaseSchema, async (tx, input, actor) => {
   const po = await tx.purchaseOrder.create({
     data: {
       ...input,
@@ -30,8 +30,7 @@ write(procurementRouter, '/purchases', 'inventory', contracts.purchaseSchema, as
 });
 
 // Create buyers
-write(procurementRouter, '/buyers', 'orders', contracts.partySchema, async (tx, input, actor) => {
-  ensure(actor.role !== 'BUYER', 'Read-only access.', 403);
+write(procurementRouter, '/buyers', 'orders:approve', contracts.partySchema, async (tx, input, actor) => {
   const buyer = await tx.buyer.create({
     data: {
       ...input,
@@ -47,8 +46,7 @@ write(procurementRouter, '/buyers', 'orders', contracts.partySchema, async (tx, 
 });
 
 // Create suppliers
-write(procurementRouter, '/suppliers', 'inventory', contracts.partySchema, async (tx, input, actor) => {
-  ensure(actor.role !== 'BUYER', 'Read-only access.', 403);
+write(procurementRouter, '/suppliers', ['procurement:manage', 'inventory:manage'], contracts.partySchema, async (tx, input, actor) => {
   const supplier = await tx.supplier.create({
     data: input,
   });

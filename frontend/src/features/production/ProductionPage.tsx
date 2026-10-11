@@ -9,44 +9,45 @@ import {
   UserRound,
   Clock,
   ClipboardList,
-  Sparkles,
-  Droplets,
-  Layers,
+  ArrowRight,
+  ShieldCheck,
+  AlertTriangle,
+  RotateCcw,
+  ArrowLeftRight,
+  Settings2,
+  Users,
 } from 'lucide-react';
-import type { JobSummary, PageResponse } from '@loomos/shared';
+import { hasPermission, jobStatusLabels, stageForRole, type BatchRef, type JobSummary, type PageResponse } from '@loomos/shared';
 import { useData, useLookups, useAction } from '../../hooks/useFactory';
 import { useAuth } from '../auth/Auth';
 import { Button } from '../../components/ui/button';
 import { ActionForm, type FormSpec } from '../../components/shared/ActionForm';
-import {
-  PageHeader,
-  Loading,
-  ErrorState,
-  Badge,
-  Progress,
-  SearchBox,
-} from '../../components/shared/common';
+import { PageHeader, Loading, ErrorState, Badge, Progress, SearchBox, Kpi } from '../../components/shared/common';
 import { number, label } from '../../lib/utils';
+import { assignForm, finishForm, handoverForm, issueForm, outputForm, reworkForm, standaloneBatchForm } from './productionForms';
 
 interface Job extends Omit<JobSummary, 'production'> {
-  production: {
-    number: string;
-    item: {
-      fabric: string;
-      color: string;
-      recipeId: string;
-      order: { id: string; number: string; buyer: { name: string } };
-    };
-    reservations: {
-      lotId: string;
-      quantity: string;
-      consumed: string;
-      lot: { code: string };
-    }[];
-    jobs: { sequence: number }[];
+  shift?: { name: string } | null;
+  production: BatchRef & {
+    status: string;
+    priority: string;
+    reservations: { lotId: string; quantity: string; consumed: string; lot: { code: string } }[];
+    jobs: { sequence: number; stage: string; status: string }[];
   };
 }
 
+const stageMeta = {
+  SPINNING: { title: 'Spinning', subtitle: 'Ring spinning frames' },
+  WEAVING: { title: 'Weaving', subtitle: 'Looms' },
+  DYEING: { title: 'Dyeing', subtitle: 'Dyeing machines' },
+} as const;
+
+// The floor board. Every stage of every batch is a card; each card shows exactly the next action
+// the signed-in person may take:
+//   production manager  → assign / move, and everything an operator can do
+//   operator            → start, output, finish, pause, report a problem (own jobs only)
+//   shift supervisor    → hand a running job to the next shift's operator
+//   everyone else       → read only
 export function ProductionPage() {
   const query = useData<PageResponse<Job>>('/production?pageSize=100');
   const lookup = useLookups();
@@ -54,369 +55,231 @@ export function ProductionPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Role detection
-  const isOperator = [
-    'OPERATOR',
-    'SPINNING_OPERATOR',
-    'WEAVING_OPERATOR',
-    'DYEING_OPERATOR',
-  ].includes(user.role);
-
-  const defaultStage =
-    user.role === 'SPINNING_OPERATOR'
-      ? 'SPINNING'
-      : user.role === 'WEAVING_OPERATOR'
-      ? 'WEAVING'
-      : user.role === 'DYEING_OPERATOR'
-      ? 'DYEING'
-      : 'ALL';
-
-  const [stageFilter, setStageFilter] = useState<string>(defaultStage);
+  const ownStage = stageForRole(user.role);
+  const canRun = hasPermission(user, 'production', 'update');
+  const canPlan = hasPermission(user, 'production', 'approve');
+  const canCreate = hasPermission(user, 'production', 'create');
+  const canHandover = hasPermission(user, 'attendance', 'manage') || canPlan;
+  const canRework = canPlan || hasPermission(user, 'quality', 'manage');
   const [search, setSearch] = useState('');
   const [spec, setSpec] = useState<FormSpec | null>(null);
-  const [view, setView] = useState('Board');
+  const [view, setView] = useState<'Pipeline' | 'List'>('Pipeline');
+  const [showCompleted, setShowCompleted] = useState(false);
 
   if (query.isPending) return <Loading />;
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
 
-  const allJobs = query.data!.data;
-  const filteredJobs = allJobs
+  const allJobs = query.data?.data ?? [];
+  const completedCount = allJobs.filter((j) => j.status === 'COMPLETED').length;
+  const jobs = allJobs
+    .filter((j) => showCompleted || j.status !== 'COMPLETED')
     .filter((j) =>
-      stageFilter === 'ALL' ? true : j.stage === stageFilter
-    )
-    .filter((j) =>
-      `${j.production.number} ${j.production.item.fabric} ${j.production.item.order.buyer.name}`
+      `${j.production.number} ${j.production.fabric} ${j.production.order?.buyer.name ?? 'stock'} ${j.production.order?.number ?? ''} ${j.stage}`
         .toLowerCase()
-        .includes(search.toLowerCase())
+        .includes(search.toLowerCase()),
     );
 
-  function start(job: Job) {
-    setSpec({
-      title: `Start ${label(job.stage).toLowerCase()}`,
-      description: `${job.production.number} · ${job.production.item.fabric}`,
-      path: `/production/jobs/${job.id}/start`,
-      fields: [
-        {
-          name: 'machineId',
-          label: 'Available machine',
-          type: 'select',
-          options: lookup.data?.machines
-            .filter((m) => m.type === job.stage && m.status === 'IDLE')
-            .map((m) => ({ value: m.id, label: `${String(m.code)} · ${m.name}` })),
-        },
-        {
-          name: 'workerId',
-          label: 'Operator',
-          type: 'select',
-          options: lookup.data?.workers.map((w) => ({ value: w.id, label: w.name })),
-        },
-        {
-          name: 'shiftId',
-          label: 'Shift',
-          type: 'select',
-          options: lookup.data?.shifts.map((s) => ({ value: s.id, label: s.name })),
-        },
-      ],
-      submit: 'Start production',
-    });
-  }
+  const nextStageOf = (job: Job) => job.production.jobs.find((j) => j.sequence === job.sequence + 1)?.stage;
+  // Rework can go back to this stage or any earlier stage the batch has already run.
+  const reachedStages = (job: Job) => {
+    const started = ['IN_PROGRESS', 'BLOCKED', 'PAUSED'].includes(job.status);
+    return job.production.jobs.filter((j) => j.sequence < job.sequence || (started && j.sequence === job.sequence)).map((j) => j.stage);
+  };
+  // Operators act only on jobs assigned to them; managers on any.
+  const mine = (job: Job) => !ownStage || job.workerId === user.workerId;
+  const post = (job: Job, verb: string) => action.mutate({ path: `/production/jobs/${job.id}/${verb}` });
 
-  function output(job: Job) {
-    const last = job.sequence === Math.max(...job.production.jobs.map((j) => j.sequence));
-    const recipe = lookup.data?.recipes.find((r) => r.id === job.production.item.recipeId);
-    setSpec({
-      title: 'Record production output',
-      description: `${job.production.number} · ${label(job.stage)}. Report actual work, including material consumed.`,
-      path: `/production/jobs/${job.id}/output`,
-      fields: [
-        {
-          name: 'quantity',
-          label: 'Output (metres)',
-          type: 'number',
-          min: 0.001,
-          value: Math.min(200, Number(job.target) - Number(job.output)),
-        },
-        {
-          name: 'hours',
-          label: 'Machine run hours',
-          type: 'number',
-          min: 0.001,
-          max: 16,
-          value: 2,
-        },
-        {
-          name: 'waste',
-          label: 'Fabric wastage (metres)',
-          type: 'number',
-          min: 0,
-          value: 0,
-        },
-        ...(job.sequence === 0
-          ? [
-              {
-                name: 'lotId',
-                label: 'Reserved yarn lot',
-                type: 'select' as const,
-                options: job.production.reservations.map((r) => ({
-                  value: r.lotId,
-                  label: `${r.lot.code} · ${number(Number(r.quantity) - Number(r.consumed), 2)} kg remaining`,
-                })),
-              },
-              {
-                name: 'consumedKg',
-                label: 'Actual yarn used (kg)',
-                type: 'number' as const,
-                min: 0.001,
-                value:
-                  Number(recipe?.kgPerMetre ?? 0.2) *
-                  Math.min(200, Number(job.target) - Number(job.output)),
-              },
-            ]
-          : []),
-        ...(last
-          ? [
-              {
-                name: 'rolls',
-                label: 'Roll lengths (metres, comma separated)',
-                value: String(Math.min(200, Number(job.target) - Number(job.output))),
-                hint: 'Lengths must total the recorded output.',
-                span: true,
-              },
-            ]
-          : []),
-      ],
-      transform: (d) => ({
-        ...d,
-        consumedKg: Number(d.consumedKg ?? 0),
-        rollLengths: last ? (d.rolls as string).split(',').map(Number) : [],
-      }),
-      submit: 'Save production entry',
-    });
-  }
+  const renderJobCard = (job: Job) => {
+    const percent = Math.min(100, Math.round((Number(job.output) / Number(job.target)) * 100));
+    const next = nextStageOf(job);
+    const busy = action.isPending;
+    const stopped = ['PAUSED', 'BLOCKED'].includes(job.status);
+    const running = job.status === 'IN_PROGRESS';
+    const assigned = job.status === 'ASSIGNED';
+    const noAction = job.status === 'READY' && !canPlan;
 
-  const groups = [
-    { title: 'Planned', statuses: ['PLANNED'], color: 'gray' },
-    { title: 'Ready to run', statuses: ['READY', 'PAUSED'], color: 'amber' },
-    { title: 'On the floor', statuses: ['IN_PROGRESS', 'BLOCKED'], color: 'green' },
-    { title: 'Completed', statuses: ['COMPLETED'], color: 'blue' },
-  ];
+    return (
+      <article key={job.id} className={`job-card ${job.status === 'BLOCKED' ? 'job-blocked' : ''}`}>
+        <div className="job-card-top">
+          <div className="job-card-title">
+            <strong>{job.production.number}</strong>
+            <span className="muted">{job.production.order?.number ?? label(job.production.purpose)}</span>
+          </div>
+          <Badge value={job.status}>{jobStatusLabels[job.status]}</Badge>
+        </div>
+        {(job.production.status === 'REWORK' || job.production.priority !== 'NORMAL') && (
+          <div className="batch-flags">
+            {job.production.status === 'REWORK' && <span className="flag rework">Rework run</span>}
+            {job.production.priority !== 'NORMAL' && <span className="flag urgent">{label(job.production.priority)}</span>}
+          </div>
+        )}
+
+        <h3>{job.production.fabric}</h3>
+        <p className="muted job-card-sub">{job.production.order?.buyer.name ?? 'Finished stock'} · {job.production.color}</p>
+
+        <Progress value={percent} />
+        <div className="job-quantity">
+          <strong>{number(job.output)} <small>/ {number(job.target)} m</small></strong>
+          <span>{percent}%</span>
+        </div>
+
+        <div className="job-meta">
+          <span><Factory size={13} />{job.machine ? `${job.machine.code} · ${job.machine.name}` : 'No machine yet'}</span>
+          <span><UserRound size={13} />{job.worker?.name ?? 'No operator yet'}{job.shift ? ` · ${job.shift.name}` : ''}</span>
+        </div>
+
+        <div className="job-card-actions">
+          {job.status === 'PLANNED' && (
+            <span className="muted job-note">
+              <Clock size={13} /> Waiting for {label(job.production.jobs.find((j) => j.sequence === job.sequence - 1)?.stage ?? 'previous stage').toLowerCase()}
+            </span>
+          )}
+          {noAction && (
+            <span className="muted job-note"><Settings2 size={13} /> Waiting for the production manager to assign a machine and operator</span>
+          )}
+
+          {job.status === 'READY' && canPlan && (
+            <Button size="sm" disabled={!lookup.data} onClick={() => setSpec(assignForm(job, job.production.number, lookup.data))}>
+              <Settings2 size={13} /> Assign machine & operator
+            </Button>
+          )}
+
+          {(assigned || stopped) && canRun && mine(job) && (
+            <Button size="sm" disabled={busy} onClick={() => post(job, 'start')} title="Checks the machine, the operator's check-in and the yarn, then starts">
+              <Play size={13} /> {stopped ? 'Start again' : 'Start production'}
+            </Button>
+          )}
+          {(assigned || stopped) && canPlan && (
+            <Button size="sm" variant="outline" disabled={!lookup.data} onClick={() => setSpec(assignForm(job, job.production.number, lookup.data))}>
+              <ArrowLeftRight size={13} /> {stopped ? 'Move' : 'Change'}
+            </Button>
+          )}
+
+          {running && canRun && mine(job) && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setSpec(outputForm(job, lookup.data))}>
+                <Plus size={13} /> Output
+              </Button>
+              <Button size="sm" className="button-lime" onClick={() => setSpec(finishForm(job, next, lookup.data))} title="Confirm the final output and hand over">
+                {next ? <ArrowRight size={13} /> : <ShieldCheck size={13} />} Finish · to {next ? label(next) : 'Quality'}
+              </Button>
+              <Button size="icon" variant="outline" title="Pause" aria-label="Pause" disabled={busy} onClick={() => post(job, 'pause')}>
+                <Pause size={13} />
+              </Button>
+            </>
+          )}
+          {(running || job.status === 'PAUSED') && canHandover && job.machineId && (
+            <Button size="sm" variant="outline" title="Shift change: another checked-in operator continues on the same machine" onClick={() => setSpec(handoverForm({ ...job, workerName: job.worker?.name, machineCode: job.machine?.code }, job.production.number, lookup.data))}>
+              <Users size={13} /> Hand over
+            </Button>
+          )}
+
+          {canRun && mine(job) && ['IN_PROGRESS', 'BLOCKED', 'PAUSED', 'ASSIGNED'].includes(job.status) && (
+            <Button size="sm" variant="outline" title="Report a problem" onClick={() => setSpec(issueForm(job.production, job.id))}>
+              <AlertTriangle size={13} /> Problem
+            </Button>
+          )}
+          {canRework && reachedStages(job).length > 0 && job.production.status !== 'REWORK' && ['IN_PROGRESS', 'BLOCKED', 'PAUSED'].includes(job.status) && (
+            <Button size="sm" variant="outline" title="Send back to an earlier stage" onClick={() => setSpec(reworkForm(job.production, reachedStages(job), lookup.data, undefined, job.stage))}>
+              <RotateCcw size={13} /> Rework
+            </Button>
+          )}
+
+          {job.status === 'COMPLETED' && (
+            <span className="green-text job-note">
+              <Check size={13} /> {label(job.stage)} complete
+            </span>
+          )}
+        </div>
+      </article>
+    );
+  };
+
+  const columns = (Object.keys(stageMeta) as (keyof typeof stageMeta)[])
+    .filter((s) => !ownStage || s === ownStage)
+    .map((id) => ({ id, ...stageMeta[id], jobs: jobs.filter((j) => j.stage === id) }));
+
+  const description = ownStage
+    ? 'Your jobs. The manager assigns you a machine; you start, record output and finish.'
+    : canPlan
+      ? 'Assign a machine and operator to each stage; the operator starts, records output and hands over.'
+      : canHandover
+        ? 'What every stage is doing now. Use Hand over when the next shift takes a running machine.'
+        : 'What every stage is doing right now.';
 
   return (
     <>
       <PageHeader
-        eyebrow="MANUFACTURING WORKSPACE"
-        title="From yarn to something great."
-        description="Plan the work. Connect the stages. Keep the floor moving."
+        eyebrow={ownStage ? `${label(ownStage).toUpperCase()} TEAM` : 'MANUFACTURING'}
+        title="Production floor"
+        description={description}
       >
-        <Button variant="outline" onClick={() => navigate('/machines')}>
-          <Factory size={16} />
-          Machine floor
-        </Button>
-        {!isOperator && (
-          <Button onClick={() => navigate('/orders')}>
-            <Plus size={16} />
-            Plan from an order
+        {!ownStage && (
+          <Button variant="outline" onClick={() => navigate('/batches')}>
+            <ClipboardList size={16} /> Batches & rework
+          </Button>
+        )}
+        {canCreate && (
+          <Button disabled={!lookup.data} onClick={() => setSpec(standaloneBatchForm(lookup.data))}>
+            <Plus size={16} /> New batch
           </Button>
         )}
       </PageHeader>
 
-      {/* Operator role banner */}
-      {isOperator && (
-        <div
-          style={{
-            background: 'rgba(59, 130, 246, 0.08)',
-            border: '1px solid rgba(59, 130, 246, 0.25)',
-            borderRadius: '8px',
-            padding: '0.75rem 1rem',
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            {user.role === 'SPINNING_OPERATOR' ? (
-              <Sparkles size={18} color="#60a5fa" />
-            ) : user.role === 'DYEING_OPERATOR' ? (
-              <Droplets size={18} color="#60a5fa" />
-            ) : (
-              <Layers size={18} color="#60a5fa" />
-            )}
-            <div>
-              <strong style={{ fontSize: '0.875rem' }}>
-                {label(user.role)} Console
-              </strong>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginLeft: '0.5rem' }}>
-                {user.departmentName ? `${user.departmentName} Department` : 'Floor Assigned'}
-              </span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.375rem' }}>
-            {['ALL', 'SPINNING', 'WEAVING', 'DYEING'].map((stg) => (
-              <button
-                key={stg}
-                onClick={() => setStageFilter(stg)}
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border)',
-                  background: stageFilter === stg ? 'var(--accent)' : 'transparent',
-                  color: stageFilter === stg ? '#fff' : 'var(--text-secondary)',
-                  fontSize: '0.75rem',
-                  fontWeight: stageFilter === stg ? 600 : 400,
-                  cursor: 'pointer',
-                }}
-              >
-                {stg === 'ALL' ? 'All Stages' : label(stg)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="kpi-grid">
+        <Kpi label="Needs machine & operator" value={allJobs.filter((j) => j.status === 'READY').length} unit="jobs" icon={<Settings2 size={19} />} meta="Handed over, nobody assigned yet" accent />
+        <Kpi label="Ready to start" value={allJobs.filter((j) => j.status === 'ASSIGNED').length} unit="jobs" icon={<Play size={19} />} meta="Assigned · press Start production" />
+        <Kpi label="Running" value={allJobs.filter((j) => j.status === 'IN_PROGRESS').length} unit="jobs" icon={<Factory size={19} />} meta={`${number(allJobs.filter((j) => j.status === 'IN_PROGRESS').reduce((s, j) => s + Number(j.output), 0))} m recorded so far`} />
+        <Kpi label="Stopped" value={allJobs.filter((j) => ['BLOCKED', 'PAUSED'].includes(j.status)).length} unit="jobs" icon={<Pause size={19} />} meta="Blocked or paused · move or start again" />
+      </div>
 
       <div className="production-toolbar">
         <div className="segmented-control">
-          {['Board', 'List'].map((t) => (
-            <button
-              key={t}
-              className={view === t ? 'active' : ''}
-              onClick={() => setView(t)}
-            >
-              {t}
-            </button>
+          {(['Pipeline', 'List'] as const).map((t) => (
+            <button key={t} className={view === t ? 'active' : ''} onClick={() => setView(t)}>{t === 'Pipeline' ? 'By stage' : 'List'}</button>
           ))}
         </div>
-        <SearchBox
-          value={search}
-          onChange={setSearch}
-          placeholder="Find a work order…"
-        />
-        <span className="muted">
-          {filteredJobs.length} stage jobs · Operator-reported
-        </span>
+        <SearchBox value={search} onChange={setSearch} placeholder="Search batch, fabric or buyer…" />
+        <label className="muted toolbar-check">
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+          Show completed ({completedCount})
+        </label>
       </div>
 
-      <div className={view === 'Board' ? 'kanban-board' : 'job-list'}>
-        {groups.map((group) => (
-          <section className="kanban-column" key={group.title}>
-            <div className="kanban-heading">
-              <span className={`tiny-dot ${group.color}`} />
-              <h2>{group.title}</h2>
-              <span>
-                {filteredJobs.filter((j) => group.statuses.includes(j.status)).length}
-              </span>
-            </div>
-            <div className="kanban-cards">
-              {filteredJobs
-                .filter((j) => group.statuses.includes(j.status))
-                .map((job) => (
-                  <article
-                    className={`job-card ${job.status === 'BLOCKED' ? 'job-blocked' : ''}`}
-                    key={job.id}
-                  >
-                    <div className="job-card-top">
-                      <span>{job.production.number}</span>
-                      <Badge value={job.stage} />
-                    </div>
-                    <h3>{job.production.item.fabric}</h3>
-                    <p>
-                      {job.production.item.order.buyer.name} <span>·</span>{' '}
-                      {job.production.item.color}
-                    </p>
-                    <Progress
-                      value={(Number(job.output) / Number(job.target)) * 100}
-                    />
-                    <div className="job-quantity">
-                      <strong>
-                        {number(job.output)}{' '}
-                        <small>/ {number(job.target)} m</small>
-                      </strong>
-                      <span>
-                        {Math.round((Number(job.output) / Number(job.target)) * 100)}%
-                      </span>
-                    </div>
-                    <div className="job-meta">
-                      <span>
-                        <Factory size={14} />
-                        {job.machine?.code ?? 'Machine unassigned'}
-                      </span>
-                      <span>
-                        <UserRound size={14} />
-                        {job.worker?.name ?? 'Operator unassigned'}
-                      </span>
-                    </div>
-                    {job.status === 'BLOCKED' && (
-                      <div className="job-warning">
-                        Machine unavailable. Recover or reassign to continue.
-                      </div>
-                    )}
-                    <div className="job-card-actions">
-                      {['READY', 'PAUSED', 'BLOCKED'].includes(job.status) &&
-                        !isOperator && (
-                          <Button size="sm" onClick={() => start(job)}>
-                            <Play size={13} />
-                            Assign & start
-                          </Button>
-                        )}
-                      {job.status === 'IN_PROGRESS' && (
-                        <>
-                          <Button size="sm" onClick={() => output(job)}>
-                            <Plus size={13} />
-                            Record output
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            title="Pause job"
-                            onClick={() =>
-                              action.mutate({ path: `/production/jobs/${job.id}/pause` })
-                            }
-                          >
-                            <Pause size={14} />
-                          </Button>
-                          {Number(job.output) >= Number(job.target) && (
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              title="Complete stage"
-                              onClick={() =>
-                                action.mutate({
-                                  path: `/production/jobs/${job.id}/complete`,
-                                })
-                              }
-                            >
-                              <Check size={14} />
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      {job.status === 'PLANNED' && (
-                        <span className="muted text-xs">
-                          <Clock size={12} />
-                          Waiting for previous stage
-                        </span>
-                      )}
-                      {job.status === 'COMPLETED' && (
-                        <span className="green-text text-xs">
-                          <Check size={13} />
-                          Stage complete
-                        </span>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              {!filteredJobs.some((j) => group.statuses.includes(j.status)) && (
-                <div className="kanban-empty">
-                  <ClipboardList size={21} />
-                  <p>No jobs in this stage</p>
+      {view === 'Pipeline' ? (
+        <div className="kanban-board" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+          {columns.map((col) => (
+            <section key={col.id} className="kanban-column">
+              <div className="kanban-heading">
+                <div>
+                  <h2>{col.title}</h2>
+                  <span className="muted">{col.subtitle}</span>
                 </div>
-              )}
+                <Badge value={String(col.jobs.length)} />
+              </div>
+              <div className="kanban-cards">
+                {col.jobs.map(renderJobCard)}
+                {col.jobs.length === 0 && (
+                  <div className="kanban-empty">
+                    <ClipboardList size={22} />
+                    <p>Nothing waiting in {col.title.toLowerCase()}</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="card-grid">
+          {jobs.map(renderJobCard)}
+          {jobs.length === 0 && (
+            <div className="kanban-empty" style={{ padding: 40 }}>
+              <ClipboardList size={28} />
+              <p>No jobs match</p>
             </div>
-          </section>
-        ))}
-      </div>
+          )}
+        </div>
+      )}
 
       {spec && <ActionForm spec={spec} onClose={() => setSpec(null)} />}
     </>

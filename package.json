@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@10.28.0",
   "workspaces": [
     "backend",
     "frontend",
@@ -13,12 +12,14 @@
     "dev": "concurrently -k -n API,WEB \"npm run dev -w @loomos/api\" \"npm run dev -w @loomos/web\"",
     "dev:api": "npm run dev -w @loomos/api",
     "dev:web": "npm run dev -w @loomos/web",
+    "dev:phone": "concurrently -k -n API,WEB \"npm run dev -w @loomos/api\" \"npm run dev:phone -w @loomos/web\"",
     "db:generate": "prisma generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema packages/db/prisma/schema.prisma",
     "db:seed": "tsx packages/db/prisma/seed.ts",
     "typecheck": "tsc --noEmit -p backend && tsc --noEmit -p frontend",
     "lint": "eslint backend frontend packages --max-warnings 0",
     "test": "vitest run",
+    "test:workflows": "vitest run --config vitest.workflows.config.ts",
     "test:e2e": "playwright test",
     "build": "npm run typecheck && npm run build -w @loomos/web && npm run build -w @loomos/api"
   },

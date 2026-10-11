@@ -14,6 +14,7 @@ import { workforceRouter } from './workforce.routes.js';
 import { financeRouter } from './finance.routes.js';
 import { settingsRouter } from './settings.routes.js';
 import { rbacRouter } from './rbac.routes.js';
+import { buyerChatRouter } from './buyerChat.routes.js';
 
 export const apiRouter = Router();
 
@@ -42,3 +43,4 @@ apiRouter.use(workforceRouter);
 apiRouter.use(financeRouter);
 apiRouter.use(settingsRouter);
 apiRouter.use('/rbac', rbacRouter);
+apiRouter.use('/buyer-chat', buyerChatRouter);

@@ -1,0 +1,549 @@
+/* LoomOS Buyer Order Assistant - Theme Aligned with LoomOS ERP Design System */
+/* Uses LoomOS Tokens: --ink, --dark, --lime, --surface, --canvas, --border, --radius */
+
+.loomos-chat-launcher {
+  position: fixed;
+  bottom: 24px;
+  right: 28px;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 9999px;
+  background: #111316;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px -4px rgba(17, 19, 22, 0.35), 0 2px 6px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-family: 'Inter Variable', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 650;
+  z-index: 1000;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.loomos-chat-launcher:hover {
+  background: #000000;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
+}
+
+.loomos-chat-launcher:active {
+  transform: translateY(0);
+}
+
+.loomos-launcher-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(200, 241, 53, 0.55);
+  animation: loomos-pulse 2.2s infinite ease-out;
+  pointer-events: none;
+}
+
+@keyframes loomos-pulse {
+  0% { transform: scale(0.96); opacity: 0.8; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+/* Chat Popup Window */
+.loomos-chat-popup {
+  position: fixed;
+  bottom: 84px;
+  right: 28px;
+  width: 410px;
+  max-width: calc(100vw - 36px);
+  height: 590px;
+  max-height: calc(100vh - 105px);
+  background: #ffffff;
+  border: 1px solid #e3e6ea;
+  border-radius: 20px;
+  box-shadow: 0 20px 48px -10px rgba(16, 24, 40, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1000;
+  font-family: 'Inter Variable', system-ui, sans-serif;
+  animation: loomos-slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes loomos-slide-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Header */
+.loomos-chat-header {
+  padding: 14px 18px;
+  background: #111316;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.loomos-header-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.loomos-bot-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #c8f135;
+  color: #111316;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(200, 241, 53, 0.3);
+}
+
+.loomos-chat-header h3 {
+  margin: 0;
+  font-family: 'Manrope Variable', 'Inter Variable', sans-serif;
+  font-size: 14.5px;
+  font-weight: 750;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.loomos-header-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #9da3af;
+  margin-top: 2px;
+}
+
+.loomos-online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c8f135;
+  box-shadow: 0 0 0 2px rgba(200, 241, 53, 0.25);
+}
+
+.loomos-header-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.loomos-head-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.loomos-head-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* Order Summary Card */
+.loomos-chat-order-card {
+  margin: 12px 16px 4px;
+  padding: 12px 14px;
+  background: #f8f9fa;
+  border: 1px solid #e8eaed;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.loomos-order-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: none;
+}
+
+.loomos-order-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.loomos-order-tabs-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.loomos-order-tab-chip {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.loomos-order-tab-chip:hover {
+  border-color: #111316;
+  color: #111316;
+}
+
+.loomos-order-tab-chip.active {
+  background: #111316;
+  border-color: #111316;
+  color: #c8f135;
+}
+
+.loomos-card-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.loomos-order-code {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #111316;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loomos-order-stage-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #c8f135;
+  background: #111316;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.2px;
+}
+
+.loomos-order-fabric {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #1f2227;
+}
+
+.loomos-order-fabric span {
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.loomos-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.loomos-progress-bar {
+  height: 100%;
+  background: #c8f135;
+  border-radius: 9999px;
+  transition: width 0.35s ease;
+}
+
+.loomos-order-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.loomos-order-stats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.loomos-card-empty {
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+.loomos-card-empty p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
+/* Warning Banner */
+.loomos-chat-banner {
+  margin: 4px 16px;
+  padding: 8px 10px;
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: 8px;
+  color: #854d0e;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Chat Messages */
+.loomos-chat-messages {
+  flex: 1;
+  padding: 14px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loomos-msg-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 86%;
+}
+
+.loomos-msg-row.buyer {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.loomos-msg-row.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.loomos-msg-bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.loomos-msg-row.buyer .loomos-msg-bubble {
+  background: #111316;
+  color: #ffffff;
+  border-bottom-right-radius: 3px;
+}
+
+.loomos-msg-row.assistant .loomos-msg-bubble {
+  background: #f5f6f8;
+  color: #101114;
+  border: 1px solid #e6e9ee;
+  border-bottom-left-radius: 3px;
+}
+
+.loomos-msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: #6b7280;
+}
+
+/* Typing Indicator */
+.loomos-typing-bubble {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  background: #f5f6f8;
+  border: 1px solid #e6e9ee;
+  border-radius: 12px;
+  border-bottom-left-radius: 3px;
+}
+
+.loomos-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #111316;
+  animation: loomos-bounce 1.4s infinite ease-in-out both;
+}
+
+.loomos-dot:nth-child(2) { animation-delay: 0.2s; }
+.loomos-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loomos-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+  40% { transform: scale(1.1); opacity: 1; }
+}
+
+/* Prompt Chips */
+.loomos-prompts-tray {
+  padding: 6px 16px 8px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.loomos-prompts-tray::-webkit-scrollbar {
+  display: none;
+}
+
+.loomos-prompt-chip {
+  white-space: nowrap;
+  background: #f5f6f8;
+  border: 1px solid #e3e6ea;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #1f2227;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.loomos-prompt-chip:hover {
+  background: #111316;
+  border-color: #111316;
+  color: #c8f135;
+}
+
+/* Listening Audio Bar */
+.loomos-listening-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #f0fbd0;
+  border-top: 1px solid #dff2a7;
+  color: #1a2400;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.loomos-wave-bar {
+  width: 3px;
+  height: 10px;
+  background: #1a2400;
+  border-radius: 2px;
+  animation: loomos-wave 0.8s infinite alternate ease-in-out;
+}
+
+.loomos-wave-bar:nth-child(2) { animation-delay: 0.15s; }
+.loomos-wave-bar:nth-child(3) { animation-delay: 0.3s; }
+.loomos-wave-bar:nth-child(4) { animation-delay: 0.45s; }
+
+@keyframes loomos-wave {
+  from { height: 4px; }
+  to { height: 14px; }
+}
+
+/* Footer & Input */
+.loomos-chat-footer {
+  padding: 10px 14px;
+  background: #ffffff;
+  border-top: 1px solid #e8eaed;
+}
+
+.loomos-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f5f6f8;
+  border: 1px solid #e3e6ea;
+  border-radius: 9999px;
+  padding: 4px 6px 4px 14px;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+
+.loomos-input-wrapper:focus-within {
+  border-color: #111316;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(17, 19, 22, 0.08);
+}
+
+.loomos-input-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #101114;
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.loomos-input-field::placeholder {
+  color: #9ca3af;
+}
+
+.loomos-mic-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e3e6ea;
+  background: #ffffff;
+  color: #111316;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.loomos-mic-btn:hover {
+  background: #f0fbd0;
+  color: #1a2400;
+  border-color: #c8f135;
+}
+
+.loomos-mic-btn.listening {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  animation: loomos-mic-pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes loomos-mic-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.loomos-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #111316;
+  color: #c8f135;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.loomos-send-btn:hover:not(:disabled) {
+  background: #000000;
+  transform: scale(1.05);
+}
+
+.loomos-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: #9ca3af;
+  background: #e5e7eb;
+}

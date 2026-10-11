@@ -52,3 +52,18 @@ export async function loginAsBuyer(page: Page) {
   await page.getByRole('button', { name: /Sign in to workspace/i }).click();
   await expect(page.locator('.workspace-main')).toBeVisible({ timeout: 10000 });
 }
+
+// Sign in as any demo account (signs out first if someone else is in).
+export async function loginAs(page: Page, email: string) {
+  // Drop any earlier session cookie, so the sign-in form is shown whatever the screen size.
+  await page.context().clearCookies();
+  await page.goto('/');
+  const skip = page.getByRole('button', { name: 'Skip introduction' });
+  if (await skip.isVisible().catch(() => false)) await skip.click();
+  const emailInput = page.locator('input[type="email"]');
+  await expect(emailInput).toBeVisible({ timeout: 30000 });
+  await emailInput.fill(email);
+  await page.locator('input[placeholder="Enter your password"]').fill('LoomDemo2026!');
+  await page.getByRole('button', { name: /Sign in to workspace/i }).click();
+  await expect(page.locator('.workspace-main')).toBeVisible({ timeout: 15000 });
+}
