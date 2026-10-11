@@ -1,7 +1,7 @@
 import { type Page, expect } from '@playwright/test';
 
 export async function loginAsAdmin(page: Page) {
-  await page.goto('/');
+  await page.goto('/login');
   // Check if already authenticated as Admin
   const isWorkspace = await page.locator('.workspace-main').isVisible().catch(() => false);
   if (isWorkspace) {
@@ -28,7 +28,7 @@ export async function loginAsAdmin(page: Page) {
 }
 
 export async function loginAsBuyer(page: Page) {
-  await page.goto('/');
+  await page.goto('/login');
   const isWorkspace = await page.locator('.workspace-main').isVisible().catch(() => false);
   if (isWorkspace) {
     const userName = await page.locator('.sidebar-user strong').textContent().catch(() => '');
@@ -57,7 +57,7 @@ export async function loginAsBuyer(page: Page) {
 export async function loginAs(page: Page, email: string) {
   // Drop any earlier session cookie, so the sign-in form is shown whatever the screen size.
   await page.context().clearCookies();
-  await page.goto('/');
+  await page.goto('/login');
   const skip = page.getByRole('button', { name: 'Skip introduction' });
   if (await skip.isVisible().catch(() => false)) await skip.click();
   const emailInput = page.locator('input[type="email"]');

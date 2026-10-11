@@ -71,6 +71,12 @@ All seeded accounts use password: `LoomDemo2026!`
 
 New buyers sign up at `/buyer/signup`; staff use "Request an account" on the login page. An administrator approves every account.
 
+## Where people start
+
+- `/` is the public home page: the animated hero, the dashboard preview, how a day at the mill runs, demo roles, and the buyer section. Nothing on it needs a session.
+- `/login` is sign-in for staff and buyers (the once-per-tab introduction plays here). A demo-role card on the home page opens it with that account filled in; nobody is signed in automatically.
+- `/buyer/signup` creates a buyer account; `/signup` requests a staff account. Signing out returns to the home page.
+
 ## What the owner sees
 
 - **Accounts** answers "did we make money this month?": sales against yarn bills, other bills, wages and expenses, a six-month chart, and cost per order.

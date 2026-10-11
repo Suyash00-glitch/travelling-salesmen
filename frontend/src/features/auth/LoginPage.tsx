@@ -16,11 +16,15 @@ interface LoginPageProps {
   onSuccess: () => void;
   onSignup?: () => void;
   onBuyerSignup?: () => void;
+  onHome?: () => void;
 }
 
-export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+// The landing page can open sign-in with a demo account already filled in (?as=email).
+const prefilled = () => new URLSearchParams(window.location.search).get('as') ?? '';
+
+export function LoginPage({ onSuccess, onSignup, onBuyerSignup, onHome }: LoginPageProps) {
+  const [email, setEmail] = useState(prefilled);
+  const [password, setPassword] = useState(() => (prefilled().endsWith('@loomos.demo') ? 'LoomDemo2026!' : ''));
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -84,6 +88,7 @@ export function LoginPage({ onSuccess, onSignup, onBuyerSignup }: LoginPageProps
       <div className="login-form-side">
         <span className="login-top-note">
           <Factory size={16} /> Everest Textile Mills
+          {onHome && <button type="button" className="login-home" onClick={onHome}>← Back to home</button>}
         </span>
 
         <div className="login-form">

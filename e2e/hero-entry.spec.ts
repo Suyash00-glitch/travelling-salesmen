@@ -23,7 +23,7 @@ test.describe('LoomOS introduction', () => {
 
   test('plays once on initial entry and hands off to the mounted sign-in page', async ({ page }) => {
     await page.clock.install();
-    await page.goto('/');
+    await page.goto('/login');
 
     await expect(page.getByRole('region', { name: INTRODUCTION })).toBeVisible();
     await expect(page.locator('.loom-entry-app')).toHaveAttribute('inert', '');
@@ -39,7 +39,7 @@ test.describe('LoomOS introduction', () => {
   });
 
   test('skip opens the workspace immediately and does not replay on reload', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
     await page.getByRole('button', { name: 'Skip introduction' }).click();
 
     await expectWorkspaceAvailable(page);
@@ -52,7 +52,7 @@ test.describe('LoomOS introduction', () => {
 
   test('pause keeps the introduction open and resume continues the handoff', async ({ page }) => {
     await page.clock.install();
-    await page.goto('/');
+    await page.goto('/login');
     await expect(page.getByRole('region', { name: INTRODUCTION })).toBeVisible();
 
     await page.clock.fastForward(1_000);
@@ -73,7 +73,7 @@ test.describe('LoomOS introduction', () => {
   test('keyboard pause during the final fade completes the handoff instead of trapping the workspace', async ({ page }) => {
     await page.clock.install({ time: new Date('2026-10-11T00:00:00Z') });
     await page.clock.pauseAt(new Date('2026-10-11T00:00:01Z'));
-    await page.goto('/');
+    await page.goto('/login');
     const introduction = page.getByRole('region', { name: INTRODUCTION });
     const pause = page.getByRole('button', { name: 'Pause animation' });
     await expect(introduction).toBeVisible();
@@ -90,7 +90,7 @@ test.describe('LoomOS introduction', () => {
 
   test('respects reduced motion without delaying sign-in or locking scroll', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/login');
 
     await expectWorkspaceAvailable(page);
   });
@@ -113,7 +113,7 @@ test.describe('LoomOS introduction', () => {
   });
 
   test('keyboard users can navigate introduction controls and skip into sign-in', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
     const introduction = page.getByRole('region', { name: INTRODUCTION });
     const skip = page.getByRole('button', { name: 'Skip introduction' });
     await introduction.getByRole('button').first().focus();
@@ -130,7 +130,7 @@ test.describe('LoomOS introduction', () => {
 
   test('fits a narrow mobile viewport and restores ordinary scrolling', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/login');
     const introduction = page.getByRole('region', { name: INTRODUCTION });
     await expect(introduction).toBeVisible();
     const bounds = await introduction.boundingBox();

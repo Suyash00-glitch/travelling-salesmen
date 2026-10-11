@@ -128,7 +128,7 @@ test.describe('Super Admin RBAC & Access Management', () => {
 
 test.describe('Guided Operator Role Experience', () => {
   test('spinning operator sees stage-scoped console in production', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     // Sign out if currently logged in
     const logoutBtn = page.getByLabel('Sign out');

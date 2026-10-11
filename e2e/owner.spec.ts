@@ -5,7 +5,7 @@ import { loginAs } from './helpers.js';
 test.describe('Owner and accounts', () => {
   test('sign-in page has no demo shortcuts but keeps signup', async ({ page }) => {
     await page.context().clearCookies();
-    await page.goto('/');
+    await page.goto('/login');
     await expect(page.locator('input[type="email"]')).toHaveValue('');
     await expect(page.getByText('Quick Fill Demo Roles')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Request a staff account' })).toBeVisible();

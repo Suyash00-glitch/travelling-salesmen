@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Authentication Flow', () => {
   test('renders login page with rich story and interactive password toggle', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     // Check brand mark and headline
     await expect(page.locator('.brand')).toContainText('LoomOS');
-    await expect(page.getByRole('heading', { level: 2, name: /A good day starts here/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Every thread');
     await expect(page.getByText('Everest Textile Mills')).toBeVisible();
 
     // The form starts empty: no demo account is filled in for you.
@@ -28,7 +28,7 @@ test.describe('Authentication Flow', () => {
   });
 
   test('displays error message on invalid credentials', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     await page.locator('input[type="email"]').fill('owner@loomos.demo');
     const passwordInput = page.locator('input[placeholder="Enter your password"]');
@@ -43,7 +43,7 @@ test.describe('Authentication Flow', () => {
   });
 
   test('successfully logs in with demo credentials into workspace and can log out', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/login');
 
     await page.locator('input[type="email"]').fill('owner@loomos.demo');
     const passwordInput = page.locator('input[placeholder="Enter your password"]');
@@ -66,6 +66,7 @@ test.describe('Authentication Flow', () => {
     await logoutBtn.click();
 
     // Should return to login page
-    await expect(page.getByRole('heading', { level: 2, name: /A good day starts here/i })).toBeVisible();
+    // Signing out returns to the public home page.
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Every thread');
   });
 });

@@ -14,7 +14,7 @@ const modules = [
 ];
 
 function shouldIntroduce() {
-  if (window.location.pathname !== '/' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  if (window.location.pathname !== '/login' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
   try { return window.sessionStorage.getItem(INTRO_KEY) !== 'seen'; } catch { return true; }
 }
 

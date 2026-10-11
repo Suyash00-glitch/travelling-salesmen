@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CurrentUser } from '@loomos/shared';
 import { api, setCsrf } from '../../services/api';
 import { Loading } from '../../components/shared/common';
 import { LoginPage, Login } from './LoginPage';
 import { SignupPage } from './SignupPage';
+import { LandingPage } from '../landing/LandingPage';
 
 export { LoginPage, Login };
 
@@ -25,11 +27,17 @@ export function useAuth(): AuthContextValue {
   return context;
 }
 
+// Signed-out visitors see the public pages by address:
+//   /              the landing page
+//   /login         staff and buyer sign-in (the once-per-tab introduction in main.tsx plays here)
+//   /signup        request a staff account
+//   /buyer/signup  create a buyer account
+// Any other address shows sign-in, and the app opens once they are signed in.
 export function AuthGate({ children }: { children: ReactNode }) {
   const client = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  // '/buyer/signup' is the public buyer entry point; staff can also request an account.
-  const [signup, setSignup] = useState<'none' | 'staff' | 'buyer'>(window.location.pathname === '/buyer/signup' ? 'buyer' : 'none');
 
   const session = useQuery({
     queryKey: ['session'],
@@ -46,15 +54,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session.data) {
-    if (signup !== 'none') {
-      return <SignupPage buyerOnly={signup === 'buyer'} onBack={() => { window.history.replaceState({}, '', '/'); setSignup('none'); }} />;
+    const path = location.pathname;
+    if (path === '/') return <LandingPage />;
+    if (path === '/buyer/signup' || path === '/signup') {
+      return <SignupPage buyerOnly={path === '/buyer/signup'} onBack={() => navigate('/login')} />;
     }
     return (
-      <LoginPage
-        onSuccess={() => void client.invalidateQueries({ queryKey: ['session'] })}
-        onSignup={() => setSignup('staff')}
-        onBuyerSignup={() => { window.history.replaceState({}, '', '/buyer/signup'); setSignup('buyer'); }}
-      />
+        <LoginPage
+          onSuccess={async () => {
+            await client.invalidateQueries({ queryKey: ['session'] });
+            // Sign-in pages are not part of the app: land on the home dashboard.
+            if (['/login', '/signup', '/buyer/signup'].includes(path)) navigate('/', { replace: true });
+          }}
+          onSignup={() => navigate('/signup')}
+          onBuyerSignup={() => navigate('/buyer/signup')}
+          onHome={() => navigate('/')}
+        />
     );
   }
 
@@ -72,7 +87,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       client.removeQueries({ queryKey: ['session'] });
       client.clear();
       setIsLoggingOut(false);
-      // 3. Clean redirect to root
+      // 3. Clean redirect to the public home page
       window.location.href = '/';
     }
   };
@@ -90,4 +105,3 @@ export function AuthGate({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
